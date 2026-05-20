@@ -88,4 +88,3 @@ if len(st.session_state.schedules) > 0:
     if st.button("전체 삭제"):
         st.session_state.schedules = []
         st.rerun()
-```
