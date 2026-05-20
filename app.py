@@ -1,3 +1,3 @@
 import streamlit as st
-st.title('안뇽')
-st.write('메롱')
+st.title('1학년 3반')
+st.write('화이팅')
