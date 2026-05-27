@@ -3,7 +3,7 @@ import google.generativeai as genai
 
 # Secrets에서 API 키 불러오기
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-model = genai.GenerativeModel("gemini-2.0-flash")
+model = genai.GenerativeModel("gemini-2.5-flash-lite")
 
 st.title("🤖 간단 챗봇")
 st.caption("제미나이로 만든 질문-답변 앱")
