@@ -4,9 +4,11 @@
 문제: 언어 및 문화 차이로 인해 오해와 갈등이 생김
 """
 
+import html
 import io
 import json
 import random
+import re
 
 import streamlit as st
 
@@ -30,21 +32,246 @@ MODEL = "gemini-2.5-flash-lite"
 
 st.set_page_config(page_title="듀오RINGGO", page_icon="🔔", layout="wide")
 
+# ---------------------------------------------------------
+# 디자인 (파스텔 블루 · 둥근 카드 · 큰 글씨)
+# ---------------------------------------------------------
 st.markdown(
     """
-    <style>
-    .ringgo-title {font-size: 2.3rem; font-weight: 800; color: #1f77b4; margin-bottom: 0;}
-    .ringgo-sub {opacity: 0.75; margin-top: 0;}
-    .box-title {font-weight: 700; font-size: 1.15rem; color: #1f77b4; margin-bottom: 0.4rem;}
-    .big-ko {font-size: 2.4rem; font-weight: 800; line-height: 1.25;}
-    .arrow {font-size: 2.8rem; text-align: center; padding-top: 6rem; color: #1f77b4;}
-    .tip {background: #fff4d6; color: #333; border-left: 5px solid #f0b400;
-          padding: 0.6rem 0.8rem; border-radius: 6px; margin-top: 0.5rem;}
-    .syllable {font-size: 4rem; font-weight: 800; text-align: center; color: #1f77b4;}
-    </style>
-    """,
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
+
+.stApp {
+    font-family: 'Noto Sans KR', sans-serif;
+    background: linear-gradient(180deg, #e3eeff 0%, #f4f8ff 45%, #e9f2ff 100%);
+    color: #1e2a4a;
+    word-break: keep-all;
+}
+.stApp input, .stApp button, .stApp textarea { font-family: 'Noto Sans KR', sans-serif; }
+.block-container { padding-top: 1.6rem; padding-bottom: 3rem; max-width: 1350px; }
+header[data-testid="stHeader"] { background: transparent; }
+
+/* 기본 글자 크게 */
+.stApp p, .stApp li, .stApp label { font-size: 1.15rem; line-height: 1.7; color: #1e2a4a; }
+
+/* ---------- 상단 배너 ---------- */
+.hero {
+    position: relative; overflow: hidden;
+    background: linear-gradient(135deg, #6fa8ff 0%, #8fc3ff 45%, #cfe6ff 100%);
+    border-radius: 32px; padding: 1.6rem 2rem 1.8rem; margin-bottom: 1.5rem;
+    box-shadow: 0 14px 40px rgba(80, 130, 230, 0.25); color: #ffffff;
+}
+.hero::after {
+    content: ""; position: absolute; right: -80px; top: -80px; width: 320px; height: 320px;
+    background: radial-gradient(circle, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0) 70%);
+}
+.hero-top { display: flex; align-items: center; gap: 0.8rem; position: relative; z-index: 1; }
+.avatar {
+    width: 52px; height: 52px; border-radius: 50%; background: rgba(255,255,255,0.35);
+    display: flex; align-items: center; justify-content: center; font-size: 1.7rem;
+}
+.hello { font-size: 1.3rem; font-weight: 700; line-height: 1.3; }
+.hello small { font-size: 0.95rem; font-weight: 400; opacity: 0.9; }
+.bell {
+    margin-left: auto; width: 52px; height: 52px; border-radius: 16px;
+    background: rgba(255,255,255,0.35); display: flex; align-items: center;
+    justify-content: center; font-size: 1.6rem;
+}
+.hero-title {
+    position: relative; z-index: 1; font-size: 3.4rem; font-weight: 900;
+    letter-spacing: -1px; margin-top: 1rem; line-height: 1.1;
+    text-shadow: 0 4px 18px rgba(40, 90, 200, 0.25);
+}
+.hero-sub { position: relative; z-index: 1; font-size: 1.3rem; margin-top: 0.4rem; opacity: 0.95; }
+.chips { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1.1rem; }
+.chips span {
+    background: rgba(255,255,255,0.9); color: #3b6fd8; font-weight: 700;
+    padding: 0.45rem 1.1rem; border-radius: 999px; font-size: 1.05rem;
+    box-shadow: 0 4px 12px rgba(60, 110, 220, 0.15);
+}
+
+/* ---------- 흰색 카드 ---------- */
+[class*="st-key-card"] {
+    background: #ffffff; border-radius: 28px; padding: 1.5rem 1.5rem 1.6rem;
+    box-shadow: 0 10px 32px rgba(80, 120, 220, 0.13);
+}
+.card-head { display: flex; align-items: center; gap: 0.9rem; margin-bottom: 0.6rem; }
+.icon-tile {
+    width: 56px; height: 56px; min-width: 56px; border-radius: 18px;
+    background: linear-gradient(150deg, #e4efff 0%, #bcd6ff 100%);
+    display: flex; align-items: center; justify-content: center; font-size: 1.8rem;
+    box-shadow: 0 6px 14px rgba(80, 130, 230, 0.2);
+}
+.card-title { font-size: 1.5rem; font-weight: 900; color: #2f5fcf; line-height: 1.25; word-break: keep-all; }
+.card-sub { font-size: 1rem; color: #7a8bab; }
+
+/* ---------- 버튼 ---------- */
+.stApp button[kind="primary"], .stApp button[kind="primaryFormSubmit"] {
+    background: linear-gradient(135deg, #4f8fff 0%, #78c0ff 100%);
+    border: none; border-radius: 999px; min-height: 3.2rem;
+    box-shadow: 0 8px 18px rgba(79, 143, 255, 0.35); transition: all 0.15s;
+}
+.stApp button[kind="primary"]:hover, .stApp button[kind="primaryFormSubmit"]:hover {
+    transform: translateY(-2px); box-shadow: 0 10px 22px rgba(79, 143, 255, 0.45);
+}
+.stApp button[kind="primary"] p, .stApp button[kind="primaryFormSubmit"] p {
+    color: #ffffff !important; font-size: 1.2rem !important; font-weight: 700;
+}
+.stApp button[kind="secondary"], .stApp button[kind="secondaryFormSubmit"] {
+    background: #eef4ff; border: 2px solid #cfe0ff; border-radius: 999px; min-height: 3rem;
+}
+.stApp button[kind="secondary"] p, .stApp button[kind="secondaryFormSubmit"] p {
+    color: #3b6fd8 !important; font-size: 1.1rem !important; font-weight: 700;
+}
+
+/* ---------- 입력창 ---------- */
+.stApp [data-baseweb="input"], .stApp [data-baseweb="select"] > div {
+    border-radius: 18px !important; background: #f3f7ff !important;
+    border: 2px solid #d6e4ff !important; min-height: 3.1rem;
+}
+.stApp input { font-size: 1.2rem !important; color: #1e2a4a !important; }
+.stApp [data-baseweb="select"] div { font-size: 1.15rem; color: #1e2a4a; }
+.stApp label p { font-size: 1.1rem !important; font-weight: 700; color: #4a5b7c !important; }
+[data-testid="stForm"] { border: none; padding: 0; }
+
+/* ---------- 탭 ---------- */
+.stTabs [role="tablist"] {
+    gap: 0.3rem; background: #eef4ff; border-radius: 999px; padding: 0.35rem;
+    border: none !important; box-shadow: none !important;
+}
+.stTabs [role="tab"] {
+    border-radius: 999px; padding: 0.5rem 0.6rem; height: auto; flex: 1;
+    display: flex; justify-content: center; border: none !important; background: transparent;
+}
+.stTabs [role="tab"] p { font-size: 1.15rem !important; font-weight: 700; color: #5a6b8c !important; }
+.stTabs [role="tab"][aria-selected="true"] {
+    background: linear-gradient(135deg, #4f8fff, #78c0ff);
+    box-shadow: 0 4px 12px rgba(79, 143, 255, 0.35);
+}
+.stTabs [role="tab"][aria-selected="true"] p { color: #ffffff !important; }
+.stTabs [data-baseweb="tab-highlight"], .stTabs [data-baseweb="tab-border"] { display: none; }
+/* ---------- 펼치기 상자 ---------- */
+[data-testid="stExpander"] details {
+    border-radius: 18px; border: 2px solid #dce8ff; background: #f7faff;
+}
+[data-testid="stExpander"] summary p { font-size: 1.15rem !important; font-weight: 700; color: #2f5fcf; }
+
+/* ---------- 보기(라디오) ---------- */
+.stRadio [role="radiogroup"] { gap: 0.55rem; }
+.stRadio [role="radiogroup"] label {
+    background: #f3f7ff; border: 2px solid #d6e4ff; border-radius: 18px;
+    padding: 0.8rem 1.1rem; width: 100%; transition: all 0.15s;
+}
+.stRadio [role="radiogroup"] label:hover { border-color: #8fb8ff; }
+.stRadio [role="radiogroup"] label:has(input:checked) { background: #dbe9ff; border-color: #4f8fff; }
+.stRadio [role="radiogroup"] label p { font-size: 1.2rem !important; font-weight: 500; color: #1e2a4a !important; }
+
+/* ---------- 번역 결과 ---------- */
+.arrow-wrap { display: flex; justify-content: center; padding-top: 7.5rem; }
+.arrow {
+    width: 64px; height: 64px; border-radius: 50%;
+    background: linear-gradient(135deg, #4f8fff, #78c0ff); color: #fff;
+    display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 900;
+    box-shadow: 0 8px 18px rgba(79, 143, 255, 0.4);
+}
+.ko-word {
+    font-size: 3.3rem; font-weight: 900; line-height: 1.2; margin: 0.3rem 0 0.8rem;
+    color: #2f5fcf;
+}
+.pill-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.8rem; }
+.pill {
+    background: #eef4ff; color: #2f5fcf; border-radius: 999px;
+    padding: 0.45rem 1rem; font-size: 1.15rem; font-weight: 700;
+}
+.meaning { font-size: 1.2rem; margin-bottom: 0.6rem; }
+.soft-box {
+    background: #f3f7ff; border-radius: 18px; padding: 0.9rem 1.1rem;
+    font-size: 1.2rem; margin: 0.6rem 0; color: #1e2a4a; line-height: 1.7;
+}
+.soft-box small { font-size: 1rem; color: #6a7b9b; }
+.tip {
+    background: #fff4d6; color: #4a3b00; border-radius: 18px;
+    padding: 0.9rem 1.1rem; margin-top: 0.7rem; font-size: 1.12rem; line-height: 1.6;
+}
+.empty {
+    text-align: center; color: #8a9bbb; font-size: 1.15rem; padding: 3rem 0.5rem;
+}
+.empty div { font-size: 3rem; margin-bottom: 0.4rem; }
+
+/* ---------- 문제 ---------- */
+.stat-row { display: flex; gap: 0.7rem; margin: 0.4rem 0 1rem; flex-wrap: wrap; }
+.stat {
+    flex: 1; min-width: 130px; border-radius: 20px; padding: 0.8rem 1rem;
+    background: linear-gradient(150deg, #f0f6ff, #dbe9ff); text-align: center;
+}
+.stat b { display: block; font-size: 1.9rem; font-weight: 900; color: #2f5fcf; }
+.stat span { font-size: 1rem; color: #5a6b8c; }
+.q-chip {
+    display: inline-block; background: #4f8fff; color: #fff; border-radius: 999px;
+    padding: 0.3rem 0.9rem; font-size: 1rem; font-weight: 700; margin-right: 0.4rem;
+}
+.q-src { font-size: 1rem; color: #7a8bab; }
+.q-text { font-size: 1.45rem; font-weight: 800; margin: 0.8rem 0; color: #1e2a4a; line-height: 1.5; }
+.opt {
+    border-radius: 18px; padding: 0.8rem 1.1rem; margin-bottom: 0.5rem;
+    font-size: 1.2rem; border: 2px solid #e1eaff; background: #f7faff; color: #1e2a4a;
+}
+.opt.ok { background: #e3f8ec; border-color: #3cbf7a; font-weight: 700; }
+.opt.no { background: #ffe9ec; border-color: #ff7b8c; text-decoration: line-through; }
+.result-ok, .result-no {
+    border-radius: 18px; padding: 1rem 1.2rem; font-size: 1.3rem; font-weight: 800; margin: 0.8rem 0 0.5rem;
+}
+.result-ok { background: linear-gradient(135deg, #dff7ea, #c8f0db); color: #1d7a4a; }
+.result-no { background: linear-gradient(135deg, #ffe8eb, #ffd6dc); color: #b3263c; }
+
+/* ---------- 한글 자모 타일 ---------- */
+.sec-title { font-size: 1.2rem; font-weight: 800; color: #2f5fcf; margin: 0.9rem 0 0.5rem; }
+.jamo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 0.5rem; }
+.jamo {
+    background: linear-gradient(160deg, #f3f8ff, #dde9ff); border-radius: 16px;
+    text-align: center; padding: 0.5rem 0.2rem; box-shadow: 0 3px 8px rgba(80, 130, 230, 0.1);
+}
+.jamo b { display: block; font-size: 1.9rem; color: #2f5fcf; line-height: 1.3; }
+.jamo small { font-size: 0.85rem; color: #5a6b8c; }
+.syllable {
+    font-size: 5rem; font-weight: 900; text-align: center; color: #ffffff;
+    background: linear-gradient(135deg, #4f8fff, #8fc3ff); border-radius: 24px;
+    padding: 0.4rem 0; margin: 0.6rem 0; box-shadow: 0 10px 24px rgba(79, 143, 255, 0.35);
+}
+.ex-item {
+    background: #f3f7ff; border-radius: 14px; padding: 0.6rem 0.9rem;
+    margin-bottom: 0.45rem; font-size: 1.15rem;
+}
+.ex-item b { color: #2f5fcf; }
+.footer { text-align: center; color: #7a8bab; font-size: 1.05rem; margin-top: 2rem; }
+</style>
+""",
     unsafe_allow_html=True,
 )
+
+
+def show_html(s):
+    """여러 줄 HTML을 화면에 출력 (앞쪽 공백 때문에 코드블록이 되는 문제 방지)"""
+    clean = "".join(line.strip() for line in s.splitlines())
+    st.markdown(clean, unsafe_allow_html=True)
+
+
+def esc(s):
+    """AI가 만든 글자를 HTML에 안전하게 넣기"""
+    return html.escape(str(s or "")).replace("\n", "<br>")
+
+
+def bold_md(s):
+    """**굵게** 표기를 <b>굵게</b>로 바꾸기"""
+    return re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", s)
+
+
+def card_head(icon, title, sub=""):
+    show_html(f"""
+        <div class="card-head">
+            <div class="icon-tile">{icon}</div>
+            <div><div class="card-title">{title}</div><div class="card-sub">{sub}</div></div>
+        </div>""")
+
 
 # ---------------------------------------------------------
 # 데이터: 한글 자모
@@ -52,7 +279,7 @@ st.markdown(
 CONSONANTS = [
     ("ㄱ", "기역", "g/k"), ("ㄴ", "니은", "n"), ("ㄷ", "디귿", "d/t"),
     ("ㄹ", "리을", "r/l"), ("ㅁ", "미음", "m"), ("ㅂ", "비읍", "b/p"),
-    ("ㅅ", "시옷", "s"), ("ㅇ", "이응", "(무음)/ng"), ("ㅈ", "지읒", "j"),
+    ("ㅅ", "시옷", "s"), ("ㅇ", "이응", "ng"), ("ㅈ", "지읒", "j"),
     ("ㅊ", "치읓", "ch"), ("ㅋ", "키읔", "k"), ("ㅌ", "티읕", "t"),
     ("ㅍ", "피읖", "p"), ("ㅎ", "히읗", "h"),
 ]
@@ -463,16 +690,24 @@ init_state()
 if st.session_state.current_q is None:
     load_bank_question()
 
-st.markdown('<p class="ringgo-title">🔔 듀오RINGGO</p>', unsafe_allow_html=True)
-st.markdown(
-    '<p class="ringgo-sub">한국어와 한국 문화를 함께 배우며, 오해 없이 소통해요! · '
-    "Learn Korean & Korean culture together</p>",
-    unsafe_allow_html=True,
-)
-if get_client() is None:
-    st.info("⚪ AI 키가 없어 기본 사전과 기본 문제로 작동 중이에요. (배포 후 Secrets에 GEMINI_API_KEY를 넣으면 AI 기능이 켜져요)")
+# ---------------- 상단 배너 ----------------
+show_html("""
+<div class="hero">
+    <div class="hero-top">
+        <div class="avatar">🙂</div>
+        <div class="hello">안녕하세요! 👋<br><small>Welcome to Korea</small></div>
+        <div class="bell">🔔</div>
+    </div>
+    <div class="hero-title">듀오RINGGO</div>
+    <div class="hero-sub">한국어와 한국 문화를 함께 배우고, 오해 없이 소통해요</div>
+    <div class="chips"><span>🌍 번역 · 발음</span><span>📝 TOPIK 문제</span><span>📚 문법 · 문화</span></div>
+</div>
+""")
 
-left, right = st.columns([3, 1], gap="large")
+if get_client() is None:
+    st.info("AI 키가 없어 기본 사전과 기본 문제로 작동 중이에요. 배포 후 Secrets에 GEMINI_API_KEY를 넣으면 AI 기능이 켜져요.")
+
+left, right = st.columns([2.5, 1], gap="large")
 
 # ---------------- 왼쪽 ----------------
 with left:
@@ -480,12 +715,12 @@ with left:
 
     # 1) 다른 언어 입력
     with c_in:
-        with st.container(border=True):
-            st.markdown('<div class="box-title">🌍 다른 언어</div>', unsafe_allow_html=True)
-            with st.form("translate_form"):
-                lang = st.selectbox("내 언어 (My language)", LANGUAGES)
-                word = st.text_input("단어나 짧은 문장 입력", placeholder="예: hello, together, 谢谢, xin chào")
-                go = st.form_submit_button("한국어로 바꾸기 ➡️", use_container_width=True)
+        with st.container(key="card_input"):
+            card_head("🌍", "다른 언어", "My language")
+            with st.form("translate_form", border=False):
+                lang = st.selectbox("내 언어", LANGUAGES)
+                word = st.text_input("단어나 짧은 문장", placeholder="예: hello, together, 谢谢")
+                go = st.form_submit_button("한국어로 바꾸기", type="primary", width="stretch")
             if go:
                 if not word.strip():
                     st.warning("단어를 입력해 주세요.")
@@ -498,63 +733,71 @@ with left:
                     st.session_state.translation_error = err
 
     with c_arrow:
-        st.markdown('<div class="arrow">➡️</div>', unsafe_allow_html=True)
+        show_html('<div class="arrow-wrap"><div class="arrow">➜</div></div>')
 
     # 2) 번역된 한국어 + 발음
     with c_out:
-        with st.container(border=True):
-            st.markdown('<div class="box-title">🇰🇷 번역된 한국어</div>', unsafe_allow_html=True)
+        with st.container(key="card_output"):
+            card_head("🇰🇷", "번역된 한국어", "Korean")
             tr = st.session_state.translation
             if st.session_state.translation_error:
                 st.warning(st.session_state.translation_error)
             if tr:
-                st.markdown(f'<div class="big-ko">{tr.get("korean", "")}</div>', unsafe_allow_html=True)
-                st.markdown(f"🔤 **로마자:** {tr.get('romanization', '')}")
-                st.markdown(f"🗣️ **실제 발음:** {tr.get('pronunciation', '')}")
+                show_html(f"""
+                    <div class="ko-word">{esc(tr.get("korean"))}</div>
+                    <div class="pill-row">
+                        <span class="pill">🔤 {esc(tr.get("romanization"))}</span>
+                        <span class="pill">🗣️ {esc(tr.get("pronunciation"))}</span>
+                    </div>""")
                 if tr.get("meaning"):
-                    st.markdown(f"📖 **뜻:** {tr.get('meaning')}")
+                    show_html(f'<div class="meaning">📖 <b>뜻</b> · {esc(tr.get("meaning"))}</div>')
                 play_audio(tr.get("korean", ""))
                 if tr.get("example_ko"):
-                    st.markdown(f"✏️ **예문:** {tr.get('example_ko')}")
-                    if tr.get("example_native"):
-                        st.caption(tr.get("example_native"))
-                    if st.button("🔊 예문 듣기"):
+                    native = f'<br><small>{esc(tr.get("example_native"))}</small>' if tr.get("example_native") else ""
+                    show_html(f'<div class="soft-box">✏️ <b>예문</b><br>{esc(tr.get("example_ko"))}{native}</div>')
+                    if st.button("🔊 예문 듣기", width="stretch"):
                         play_audio(tr.get("example_ko"))
                 if tr.get("culture_tip"):
-                    st.markdown(f'<div class="tip">💡 <b>문화 팁</b><br>{tr.get("culture_tip")}</div>',
-                                unsafe_allow_html=True)
+                    show_html(f'<div class="tip">💡 <b>문화 팁</b><br>{esc(tr.get("culture_tip"))}</div>')
             elif not st.session_state.translation_error:
-                st.caption("왼쪽에 단어를 넣으면 한국어 뜻과 발음이 여기에 나와요.")
+                show_html('<div class="empty"><div>💬</div>왼쪽에 단어를 넣으면<br>한국어 뜻과 발음이 나와요</div>')
+
+    st.write("")
 
     # 3) 한국어 문제
-    with st.container(border=True):
-        st.markdown('<div class="box-title">📝 한국어 문제 (TOPIK 스타일)</div>', unsafe_allow_html=True)
+    with st.container(key="card_quiz"):
+        card_head("📝", "한국어 문제", "TOPIK 스타일 · 실생활 한국어")
 
-        s1, s2, s3 = st.columns([1, 1, 1])
-        s1.metric("맞힌 문제", f"{st.session_state.score} / {st.session_state.total}")
-        rate = (st.session_state.score / st.session_state.total * 100) if st.session_state.total else 0
-        s2.metric("정답률", f"{rate:.0f}%")
-        s3.button("점수 초기화", on_click=reset_score, use_container_width=True)
+        total = st.session_state.total
+        score = st.session_state.score
+        rate = (score / total * 100) if total else 0
+        show_html(f"""
+            <div class="stat-row">
+                <div class="stat"><b>{score}</b><span>맞힌 문제</span></div>
+                <div class="stat"><b>{total}</b><span>푼 문제</span></div>
+                <div class="stat"><b>{rate:.0f}%</b><span>정답률</span></div>
+            </div>""")
 
-        with st.expander("✨ AI로 새 문제 만들기 (선택)"):
+        with st.expander("✨ AI로 새 문제 만들기"):
             a1, a2 = st.columns(2)
             a1.selectbox("수준", ["TOPIK I (1~2급)", "TOPIK II (3~4급)"], key="ai_level")
             a2.selectbox("유형", ["어휘", "문법", "읽기", "대화 완성", "존댓말", "한국 생활 문화"], key="ai_type")
-            st.button("AI 문제 만들기", on_click=load_ai_question, use_container_width=True)
+            st.button("AI 문제 만들기", on_click=load_ai_question, type="primary", width="stretch")
 
         if st.session_state.quiz_error:
             st.warning(st.session_state.quiz_error)
 
         q = st.session_state.current_q
-        st.caption(f"[{q['category']}] · {q['source']}")
+        show_html(f'<span class="q-chip">{esc(q["category"])}</span><span class="q-src">{esc(q["source"])}</span>')
         if q["passage"]:
-            st.info(q["passage"])
-        st.markdown(f"**{q['question']}**")
+            show_html(f'<div class="soft-box">{esc(q["passage"])}</div>')
+        show_html(f'<div class="q-text">{esc(q["question"])}</div>')
 
         if not st.session_state.answered:
-            with st.form(f"quiz_form_{q['id']}"):
-                choice = st.radio("정답을 고르세요", q["options"], index=None, key=f"choice_{q['id']}")
-                submitted = st.form_submit_button("정답 확인 ✅")
+            with st.form(f"quiz_form_{q['id']}", border=False):
+                choice = st.radio("정답을 고르세요", q["options"], index=None,
+                                  key=f"choice_{q['id']}", label_visibility="collapsed")
+                submitted = st.form_submit_button("정답 확인", type="primary", width="stretch")
             if submitted:
                 if choice is None:
                     st.warning("보기를 하나 골라 주세요.")
@@ -566,60 +809,68 @@ with left:
                         st.session_state.score += 1
                     st.rerun()
         else:
+            rows = ""
             for opt in q["options"]:
                 if opt == q["correct"]:
-                    st.markdown(f"✅ **{opt}**")
+                    rows += f'<div class="opt ok">✅ {esc(opt)}</div>'
                 elif opt == st.session_state.last_choice:
-                    st.markdown(f"❌ ~~{opt}~~")
+                    rows += f'<div class="opt no">❌ {esc(opt)}</div>'
                 else:
-                    st.markdown(f"▫️ {opt}")
+                    rows += f'<div class="opt">{esc(opt)}</div>'
+            show_html(rows)
             if st.session_state.last_choice == q["correct"]:
-                st.success("정답이에요! 잘했어요 🎉")
+                show_html('<div class="result-ok">🎉 정답이에요! 잘했어요</div>')
             else:
-                st.error(f"아쉬워요. 정답은 '{q['correct']}' 이에요.")
+                show_html(f'<div class="result-no">😢 아쉬워요. 정답은 \'{esc(q["correct"])}\' 이에요</div>')
             if q["explain"]:
-                st.markdown(f"💬 **해설:** {q['explain']}")
+                show_html(f'<div class="soft-box">💬 <b>해설</b> · {esc(q["explain"])}</div>')
 
-        st.button("다음 기본 문제 ➡️", on_click=load_bank_question, use_container_width=True)
+        b1, b2 = st.columns([2, 1])
+        b1.button("다음 문제 ➜", on_click=load_bank_question, type="primary", width="stretch")
+        b2.button("점수 초기화", on_click=reset_score, width="stretch")
 
 # ---------------- 오른쪽: 한국어 문법, 사용법 ----------------
 with right:
-    with st.container(border=True):
-        st.markdown('<div class="box-title">📚 한국어 문법, 사용법</div>', unsafe_allow_html=True)
+    with st.container(key="card_grammar"):
+        card_head("📚", "한국어 문법, 사용법", "Hangul · Grammar · Culture")
         tab1, tab2, tab3 = st.tabs(["한글", "문법", "문화"])
 
         with tab1:
-            st.markdown("**자음 (Consonants)**")
-            st.markdown("\n".join(f"- **{c}** {n} · {s}" for c, n, s in CONSONANTS))
-            st.markdown("**쌍자음**  \n" + " · ".join(f"**{c}** {s}" for c, s in DOUBLE_CONSONANTS))
-            st.markdown("**모음 (Vowels)**")
-            st.markdown("\n".join(f"- **{v}** · {s}" for v, s in VOWELS))
-            st.divider()
-            st.markdown("**🧩 글자 만들기**")
-            cho = st.selectbox("첫소리(자음)", CHO, index=11)
-            jung = st.selectbox("가운뎃소리(모음)", JUNG, index=0)
-            jong = st.selectbox("끝소리(받침)", JONG, index=0)
+            show_html('<div class="sec-title">자음 Consonants</div><div class="jamo-grid">'
+                      + "".join(f'<div class="jamo"><b>{c}</b><small>{n} · {s}</small></div>'
+                                for c, n, s in CONSONANTS)
+                      + "</div>")
+            show_html('<div class="sec-title">쌍자음</div><div class="jamo-grid">'
+                      + "".join(f'<div class="jamo"><b>{c}</b><small>{s}</small></div>'
+                                for c, s in DOUBLE_CONSONANTS)
+                      + "</div>")
+            show_html('<div class="sec-title">모음 Vowels</div><div class="jamo-grid">'
+                      + "".join(f'<div class="jamo"><b>{v}</b><small>{s}</small></div>'
+                                for v, s in VOWELS)
+                      + "</div>")
+            show_html('<div class="sec-title">🧩 글자 만들기</div>')
+            cho = st.selectbox("첫소리 (자음)", CHO, index=11)
+            jung = st.selectbox("가운뎃소리 (모음)", JUNG, index=0)
+            jong = st.selectbox("끝소리 (받침)", JONG, index=0)
             code = 0xAC00 + (CHO.index(cho) * 21 + JUNG.index(jung)) * 28 + JONG.index(jong)
             syllable = chr(code)
-            st.markdown(f'<div class="syllable">{syllable}</div>', unsafe_allow_html=True)
-            if st.button("🔊 소리 듣기", use_container_width=True):
+            show_html(f'<div class="syllable">{syllable}</div>')
+            if st.button("🔊 소리 듣기", type="primary", width="stretch"):
                 play_audio(syllable)
 
         with tab2:
             g = st.selectbox("문법 고르기", list(GRAMMAR.keys()))
             item = GRAMMAR[g]
-            st.markdown(item["rule"])
-            st.markdown("**예문**")
-            for ex in item["examples"]:
-                st.markdown(f"- {ex}")
-            st.markdown(f'<div class="tip">💡 {item["tip"]}</div>', unsafe_allow_html=True)
+            show_html(f'<div class="soft-box">{bold_md(item["rule"])}</div>')
+            show_html('<div class="sec-title">예문</div>'
+                      + "".join(f'<div class="ex-item">{bold_md(ex)}</div>' for ex in item["examples"]))
+            show_html(f'<div class="tip">💡 {item["tip"]}</div>')
 
         with tab3:
-            st.caption("한국 생활에서 생길 수 있는 오해를 줄여요.")
+            show_html('<div class="soft-box">한국 생활에서 생길 수 있는<br><b>오해를 줄여요</b> 🤝</div>')
             for title, desc, phrase in CULTURE:
                 with st.expander(title):
                     st.write(desc)
-                    st.markdown(f"🗨️ *{phrase}*")
+                    show_html(f'<div class="ex-item">🗨️ <b>{phrase}</b></div>')
 
-st.divider()
-st.caption("듀오RINGGO · 언어와 문화의 차이를 이해하면 오해가 줄어요 🤝")
+show_html('<div class="footer">듀오RINGGO · 언어와 문화의 차이를 이해하면 오해가 줄어요 🤝</div>')
