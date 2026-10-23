@@ -5,407 +5,435 @@ import streamlit.components.v1 as components
 st.set_page_config(
     page_title="소리로만 하는 축구",
     page_icon="⚽",
-    layout="wide"
+    layout="centered",
+    initial_sidebar_state="collapsed"
 )
 
 st.markdown("""
 <style>
 .stApp {
-    background: #f0f7ff;
+    background: linear-gradient(145deg, #f8fcff, #dcecff);
 }
 .block-container {
-    max-width: 1050px;
-    padding-top: 1.5rem;
+    max-width: 720px;
+    padding: 1rem 0.5rem 2rem;
 }
-h1 {
-    text-align: center;
-    color: #164b79;
+header[data-testid="stHeader"] {
+    background: transparent;
+}
+#MainMenu, footer {
+    visibility: hidden;
 }
 </style>
 """, unsafe_allow_html=True)
 
-st.title("⚽ 소리로만 하는 축구")
-st.markdown(
-    "<p style='text-align:center;font-size:20px;'>"
-    "소리를 듣고 공을 막아보세요!</p>",
-    unsafe_allow_html=True
-)
-
-game_html = """
+html = r"""
 <!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport"
-content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-* { box-sizing: border-box; }
+* {box-sizing:border-box}
 body {
-    margin: 0;
-    font-family: Arial, sans-serif;
-    background: #f0f7ff;
-    color: #183b57;
+    margin:0;
+    font-family:Arial,'Malgun Gothic',sans-serif;
+    color:#245078;
+    background:transparent;
 }
-.container {
-    max-width: 850px;
-    margin: auto;
-    padding: 12px;
+.app {
+    max-width:550px;
+    margin:auto;
+    background:#f5faff;
+    border-radius:30px;
+    overflow:hidden;
+    box-shadow:0 15px 40px #80a6d044;
 }
-.scoreboard {
-    display: flex;
-    justify-content: space-around;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 15px;
+.hero {
+    background:linear-gradient(135deg,#72a8ff,#a5d9ff 65%,#d4f6ff);
+    padding:27px 24px 32px;
+    color:white;
+    position:relative;
 }
-.score {
-    background: white;
-    border-radius: 14px;
-    padding: 12px;
-    min-width: 105px;
-    text-align: center;
-    font-weight: bold;
-    font-size: 18px;
-    border: 2px solid #c9dff2;
+.brand {
+    font-size:14px;
+    font-weight:bold;
+    letter-spacing:2px;
+    opacity:.95;
 }
-.score strong {
-    display: block;
-    font-size: 27px;
-    color: #1263aa;
+.hero h1 {
+    margin:20px 0 8px;
+    font-size:32px;
+    line-height:1.25;
+}
+.hero p {
+    font-size:15px;
+    line-height:1.6;
+    margin:0;
+}
+.hero-ball {
+    position:absolute;
+    right:25px;
+    top:65px;
+    font-size:60px;
+    opacity:.85;
+}
+.content {padding:20px}
+.stats {
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:8px;
+    margin-bottom:17px;
+}
+.stat {
+    background:white;
+    border-radius:16px;
+    padding:13px 3px;
+    text-align:center;
+    box-shadow:0 4px 12px #a6c8e72b;
+}
+.stat small {
+    display:block;
+    font-size:12px;
+    color:#7499bc;
+}
+.stat strong {
+    display:block;
+    font-size:24px;
+    color:#347cda;
+    margin-top:4px;
+}
+.game-card {
+    background:white;
+    padding:12px;
+    border-radius:22px;
+    box-shadow:0 5px 18px #8db5d02a;
 }
 .field {
-    position: relative;
-    height: 300px;
-    overflow: hidden;
-    background: linear-gradient(
-        #74bf7c, #3e9959
-    );
-    border: 5px solid white;
-    border-radius: 18px;
-}
-.field::after {
-    content: "";
-    position: absolute;
-    inset: 20px;
-    border: 2px solid rgba(255,255,255,.5);
-    border-radius: 8px;
-    pointer-events: none;
+    height:260px;
+    position:relative;
+    overflow:hidden;
+    border-radius:16px;
+    background:linear-gradient(180deg,#b8e7ff,#7ebfe9);
 }
 .goal {
-    position: absolute;
-    top: 10px;
-    left: 25%;
-    width: 50%;
-    height: 85px;
-    border: 6px solid white;
+    position:absolute;
+    left:23%;
+    top:20px;
+    width:54%;
+    height:95px;
+    border:6px solid white;
+    border-radius:7px 7px 0 0;
     background:
-      repeating-linear-gradient(
-        0deg, transparent 0 16px,
-        #ffffff55 17px 19px
-      ),
-      repeating-linear-gradient(
-        90deg, transparent 0 20px,
-        #ffffff55 21px 23px
-      );
+      repeating-linear-gradient(90deg,transparent 0 19px,#ffffff70 20px 22px),
+      repeating-linear-gradient(0deg,transparent 0 19px,#ffffff70 20px 22px);
+    box-shadow:0 4px 12px #458ac255;
 }
-.player {
-    position: absolute;
-    bottom: 15px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 65px;
+.ground {
+    position:absolute;
+    bottom:-40px;
+    width:130%;
+    left:-15%;
+    height:125px;
+    border-radius:50%;
+    background:#8ed3b2;
+}
+.keeper {
+    position:absolute;
+    bottom:18px;
+    left:50%;
+    transform:translateX(-50%);
+    font-size:63px;
 }
 .ball {
-    position: absolute;
-    top: 105px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 48px;
-    transition: left .3s;
+    position:absolute;
+    top:130px;
+    left:50%;
+    transform:translateX(-50%);
+    font-size:44px;
+    transition:left .3s,top .3s;
 }
 .message {
-    background: white;
-    border: 3px solid #b7d8f3;
-    border-radius: 14px;
-    padding: 18px;
-    margin: 15px 0;
-    text-align: center;
-    font-size: 24px;
-    font-weight: bold;
-    min-height: 75px;
+    margin-top:12px;
+    background:#eaf5ff;
+    border-radius:13px;
+    padding:16px 10px;
+    min-height:68px;
+    text-align:center;
+    font-size:19px;
+    font-weight:bold;
+    color:#286cae;
 }
-.controls {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
+.section-title {
+    font-size:17px;
+    font-weight:bold;
+    margin:22px 2px 12px;
+}
+.buttons {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
 }
 button {
-    border: none;
-    border-radius: 15px;
-    padding: 20px 10px;
-    font-size: 21px;
-    font-weight: bold;
-    cursor: pointer;
-    touch-action: manipulation;
+    border:0;
+    border-radius:15px;
+    min-height:67px;
+    padding:12px 8px;
+    font-size:17px;
+    font-weight:bold;
+    cursor:pointer;
+    touch-action:manipulation;
 }
 button:focus-visible {
-    outline: 4px solid #ffae00;
-    outline-offset: 3px;
+    outline:4px solid #ffad32;
+    outline-offset:3px;
 }
-.start { background: #1675c5; color: white; }
-.catch { background: #ffcf4a; color: #222; }
-.sound { background: #e3eaf1; color: #183b57; }
-.reset { background: #e8dff5; color: #402d66; }
-button:disabled {
-    opacity: .5;
-    cursor: not-allowed;
+.primary {
+    background:linear-gradient(135deg,#498ef5,#77b8ff);
+    color:white;
+    box-shadow:0 5px 12px #579de555;
 }
-.help {
-    background: white;
-    border-radius: 14px;
-    padding: 15px;
-    margin-top: 15px;
-    font-size: 17px;
-    line-height: 1.7;
+.catch {
+    background:#fff1b9;
+    color:#765313;
 }
-@media(max-width: 500px) {
-    .field { height: 240px; }
-    button { font-size: 18px; }
-    .message { font-size: 20px; }
+.secondary {
+    background:white;
+    color:#397db9;
+    border:2px solid #d8eafb;
+}
+button:disabled {opacity:.5;cursor:not-allowed}
+.guide {
+    margin-top:22px;
+    padding:19px;
+    background:white;
+    border-radius:18px;
+    font-size:15px;
+    line-height:1.9;
+    color:#537a9c;
+}
+.guide b {color:#276ba8}
+.footer {
+    text-align:center;
+    padding:18px 8px 25px;
+    font-size:12px;
+    color:#8daac4;
+}
+@media(max-width:420px) {
+    .hero h1 {font-size:27px}
+    .hero-ball {font-size:42px;top:82px}
+    .content {padding:13px}
+    .field {height:230px}
+    .stat strong {font-size:21px}
+    button {font-size:15px}
 }
 </style>
 </head>
 <body>
-<div class="container">
+<div class="app">
+  <div class="hero">
+    <div class="brand">⚽ SOUND FOOTBALL</div>
+    <h1>소리로만 하는<br>축구 게임</h1>
+    <p>눈이 아닌 귀로 느끼는 축구!<br>
+       소리를 듣고 공을 막아보세요.</p>
+    <div class="hero-ball" aria-hidden="true">⚽</div>
+  </div>
 
-<div class="scoreboard">
-  <div class="score">점수<strong id="score">0</strong></div>
-  <div class="score">최고 점수<strong id="best">0</strong></div>
-  <div class="score">기회<strong id="lives">5</strong></div>
-  <div class="score">레벨<strong id="level">1</strong></div>
-</div>
+  <div class="content">
+    <div class="stats">
+      <div class="stat"><small>점수</small><strong id="score">0</strong></div>
+      <div class="stat"><small>최고점수</small><strong id="best">0</strong></div>
+      <div class="stat"><small>기회</small><strong id="lives">5</strong></div>
+      <div class="stat"><small>레벨</small><strong id="level">1</strong></div>
+    </div>
 
-<div class="field" aria-hidden="true">
-  <div class="goal"></div>
-  <div class="ball" id="ball">⚽</div>
-  <div class="player">🧤</div>
-</div>
+    <div class="game-card">
+      <div class="field" aria-hidden="true">
+        <div class="goal"></div>
+        <div class="ground"></div>
+        <div class="ball" id="ball">⚽</div>
+        <div class="keeper">🧤</div>
+      </div>
+      <div class="message" id="message" role="status" aria-live="polite">
+        🎧 게임 시작을 눌러주세요!
+      </div>
+    </div>
 
-<div class="message" id="message"
-     role="status" aria-live="polite">
-  시작 버튼을 눌러주세요!
-</div>
+    <div class="section-title">🎮 게임 조작</div>
+    <div class="buttons">
+      <button class="primary" id="start" onclick="startGame()">
+        ▶ 게임 시작
+      </button>
+      <button class="catch" id="catch" onclick="catchBall()" disabled>
+        🧤 공 막기!
+      </button>
+      <button class="secondary" id="sound" onclick="toggleSound()">
+        🔊 음성 켜짐
+      </button>
+      <button class="secondary" onclick="resetGame()">
+        ↻ 다시 시작
+      </button>
+    </div>
 
-<div class="controls">
-  <button class="start" id="start"
-    onclick="startGame()">▶ 게임 시작</button>
-  <button class="catch" id="catch"
-    onclick="catchBall()" disabled>
-    🧤 공 막기!
-  </button>
-  <button class="sound" id="sound"
-    onclick="toggleSound()">
-    🔊 음성 켜짐
-  </button>
-  <button class="reset"
-    onclick="resetGame()">🔄 다시 시작</button>
-</div>
-
-<div class="help">
-  <b>🎧 게임 방법</b><br>
-  ① 게임 시작을 누릅니다.<br>
-  ② 왼쪽, 가운데, 오른쪽 음성 안내를 듣습니다.<br>
-  ③ 숫자 카운트다운에 집중합니다.<br>
-  ④ "지금!" 소리에 맞춰 공 막기 버튼을 누릅니다.<br>
-  ⑤ 성공할수록 공이 더 빠르게 날아옵니다.<br>
-  ⌨️ 스페이스바로도 공을 막을 수 있습니다.<br>
-  ※ 이어폰 사용을 권장합니다.
-</div>
-
+    <div class="guide">
+      <b>💙 게임 이용 방법</b><br>
+      ① 게임 시작 버튼을 누르세요.<br>
+      ② 공이 오는 방향을 소리로 들어보세요.<br>
+      ③ 3, 2, 1 카운트다운을 기다리세요.<br>
+      ④ "지금!" 소리가 나면 공 막기를 누르세요.<br>
+      ⑤ 성공하면 10점을 얻고 난이도가 올라갑니다.<br>
+      ⌨️ 키보드 스페이스바로도 막을 수 있어요.
+    </div>
+  </div>
+  <div class="footer">SOUND FOOTBALL · 김소민</div>
 </div>
 
 <script>
-let score = 0;
-let best = 0;
-let lives = 5;
-let level = 1;
-let running = false;
-let soundOn = true;
-let direction = "";
-let targetTime = 0;
-let active = false;
-let timers = [];
-let roundId = 0;
+let score=0,best=0,lives=5,level=1;
+let running=false,active=false,soundOn=true;
+let timers=[],roundId=0,targetTime=0;
 
-const msg = document.getElementById("message");
-const ball = document.getElementById("ball");
-const catchButton = document.getElementById("catch");
-const startButton = document.getElementById("start");
+const el=id=>document.getElementById(id);
 
-function schedule(fn, delay) {
-    const id = setTimeout(fn, delay);
-    timers.push(id);
+function later(fn,ms) {
+    const t=setTimeout(fn,ms);
+    timers.push(t);
 }
-function clearTimers() {
+function clearAll() {
     timers.forEach(clearTimeout);
-    timers = [];
+    timers=[];
 }
-function speak(text) {
-    if (!soundOn) return;
-    if (!("speechSynthesis" in window)) return;
+function say(text) {
+    if(!soundOn || !('speechSynthesis' in window)) return;
     try {
-        window.speechSynthesis.cancel();
-        const voice = new SpeechSynthesisUtterance(text);
-        voice.lang = "ko-KR";
-        voice.rate = 1.05;
-        window.speechSynthesis.speak(voice);
-    } catch (e) {
-        console.log("음성 출력 실패", e);
-    }
+        speechSynthesis.cancel();
+        const u=new SpeechSynthesisUtterance(text);
+        u.lang="ko-KR";
+        u.rate=1.05;
+        speechSynthesis.speak(u);
+    } catch(e) {console.log(e)}
 }
+function show(text) {el("message").textContent=text}
 function update() {
-    document.getElementById("score").textContent = score;
-    document.getElementById("best").textContent = best;
-    document.getElementById("lives").textContent = lives;
-    document.getElementById("level").textContent = level;
-}
-function show(text) {
-    msg.textContent = text;
-}
-function toggleSound() {
-    soundOn = !soundOn;
-    document.getElementById("sound").textContent =
-        soundOn ? "🔊 음성 켜짐" : "🔇 음성 꺼짐";
-    if (soundOn) speak("음성이 켜졌습니다.");
-    else if ("speechSynthesis" in window)
-        window.speechSynthesis.cancel();
+    el("score").textContent=score;
+    el("best").textContent=best;
+    el("lives").textContent=lives;
+    el("level").textContent=level;
 }
 function resetGame() {
     roundId++;
-    clearTimers();
-    if ("speechSynthesis" in window)
-        window.speechSynthesis.cancel();
-    running = false;
-    active = false;
-    score = 0;
-    lives = 5;
-    level = 1;
-    targetTime = 0;
-    ball.style.left = "50%";
-    catchButton.disabled = true;
-    startButton.disabled = false;
-    show("시작 버튼을 눌러주세요!");
+    clearAll();
+    if('speechSynthesis' in window) speechSynthesis.cancel();
+    score=0;lives=5;level=1;
+    running=false;active=false;
+    el("catch").disabled=true;
+    el("start").disabled=false;
+    el("ball").style.left="50%";
+    el("ball").style.top="130px";
+    show("🎧 게임 시작을 눌러주세요!");
     update();
+}
+function toggleSound() {
+    soundOn=!soundOn;
+    el("sound").textContent=soundOn?"🔊 음성 켜짐":"🔇 음성 꺼짐";
+    if(soundOn) say("음성이 켜졌습니다.");
+    else if('speechSynthesis' in window) speechSynthesis.cancel();
 }
 function startGame() {
-    if (running) return;
+    if(running)return;
     resetGame();
-    running = true;
-    startButton.disabled = true;
-    show("게임이 시작됩니다!");
-    speak("게임 시작! 소리에 집중하세요.");
-    schedule(nextRound, 1800);
+    running=true;
+    el("start").disabled=true;
+    show("⚽ 게임이 시작됩니다!");
+    say("게임 시작! 소리에 집중하세요.");
+    later(nextRound,1800);
 }
 function nextRound() {
-    if (!running) return;
+    if(!running)return;
     roundId++;
-    clearTimers();
-    active = false;
-    catchButton.disabled = true;
+    clearAll();
+    active=false;
+    el("catch").disabled=true;
+    const id=roundId;
+    const dirs=["왼쪽","가운데","오른쪽"];
+    const direction=dirs[Math.floor(Math.random()*3)];
+    const pos={"왼쪽":"25%","가운데":"50%","오른쪽":"75%"};
+    el("ball").style.left=pos[direction];
+    el("ball").style.top="130px";
 
-    const current = roundId;
-    const dirs = ["왼쪽", "가운데", "오른쪽"];
-    direction = dirs[Math.floor(Math.random() * 3)];
+    show("🔊 "+direction+"에서 공이 옵니다!");
+    say(direction+"에서 공이 옵니다.");
 
-    const positions = {
-        "왼쪽": "25%",
-        "가운데": "50%",
-        "오른쪽": "75%"
-    };
-    ball.style.left = positions[direction];
+    const interval=Math.max(550,1100-(level-1)*100);
+    const delay=1500;
 
-    show(direction + "에서 공이 옵니다!");
-    speak(direction + "에서 공이 옵니다.");
-
-    // 레벨이 높아질수록 카운트다운이 빨라짐
-    const interval = Math.max(550, 1100 - (level-1)*100);
-    const startDelay = 1500;
-
-    for (let n = 3; n >= 1; n--) {
-        const delay = startDelay + (3-n)*interval;
-        schedule(() => {
-            if (current !== roundId || !running) return;
-            show(direction + " · " + n);
-            speak(String(n));
-        }, delay);
+    for(let n=3;n>=1;n--) {
+        later(()=>{
+            if(id!==roundId||!running)return;
+            show("⚽ "+direction+" · "+n);
+            say(String(n));
+        },delay+(3-n)*interval);
     }
 
-    const hitDelay = startDelay + 3*interval;
+    const hit=delay+3*interval;
+    const windowMs=Math.max(350,750-(level-1)*50);
 
-    schedule(() => {
-        if (current !== roundId || !running) return;
-        targetTime = performance.now();
-        active = true;
-        catchButton.disabled = false;
-        show("⚽ 지금! 공을 막으세요!");
-        speak("지금!");
-    }, hitDelay);
+    later(()=>{
+        if(id!==roundId||!running)return;
+        targetTime=performance.now();
+        active=true;
+        el("catch").disabled=false;
+        el("ball").style.top="175px";
+        show("🧤 지금! 공을 막으세요!");
+        say("지금!");
+    },hit);
 
-    // 성공 가능 시간: 약 0.7초
-    const windowMs = Math.max(350, 750-(level-1)*50);
-
-    schedule(() => {
-        if (current !== roundId || !running) return;
-        if (active) {
-            active = false;
-            catchButton.disabled = true;
-            missBall("시간 초과! 골을 허용했어요.");
-        }
-    }, hitDelay + windowMs);
+    later(()=>{
+        if(id!==roundId||!running||!active)return;
+        active=false;
+        el("catch").disabled=true;
+        miss("시간 초과! 골을 허용했어요.");
+    },hit+windowMs);
 }
 function catchBall() {
-    if (!running || !active) return;
+    if(!running||!active)return;
+    active=false;
+    el("catch").disabled=true;
+    clearAll();
 
-    active = false;
-    catchButton.disabled = true;
-    clearTimers();
-
-    const elapsed = performance.now() - targetTime;
-    const windowMs = Math.max(350, 750-(level-1)*50);
-
-    if (elapsed <= windowMs) {
-        score += 10;
-        best = Math.max(best, score);
-        level = Math.min(8, Math.floor(score/30)+1);
+    const windowMs=Math.max(350,750-(level-1)*50);
+    if(performance.now()-targetTime<=windowMs) {
+        score+=10;
+        best=Math.max(best,score);
+        level=Math.min(8,Math.floor(score/30)+1);
         show("🎉 멋진 선방! +10점");
-        speak("성공! 멋진 선방입니다.");
+        say("성공! 멋진 선방입니다.");
         update();
-        schedule(nextRound, 1800);
+        later(nextRound,1800);
     } else {
-        missBall("아쉬워요! 공을 놓쳤어요.");
+        miss("아쉬워요! 공을 놓쳤어요.");
     }
 }
-function missBall(text) {
+function miss(text) {
     lives--;
-    show("🥅 " + text);
-    speak(text);
+    show("🥅 "+text);
+    say(text);
     update();
-
-    if (lives <= 0) {
-        running = false;
-        active = false;
-        catchButton.disabled = true;
-        startButton.disabled = false;
-        show("🏁 게임 종료! 최종 점수: " + score + "점");
-        speak("게임 종료. 최종 점수 " + score + "점.");
+    if(lives<=0) {
+        running=false;
+        active=false;
+        el("catch").disabled=true;
+        el("start").disabled=false;
+        show("🏁 게임 종료! 최종 점수 "+score+"점");
+        say("게임 종료. 최종 점수 "+score+"점.");
     } else {
-        schedule(nextRound, 1800);
+        later(nextRound,1800);
     }
 }
-document.addEventListener("keydown", (e) => {
-    if (e.code === "Space") {
+document.addEventListener("keydown",e=>{
+    if(e.code==="Space") {
         e.preventDefault();
-        if (active) catchBall();
+        if(active)catchBall();
     }
 });
 update();
@@ -414,9 +442,4 @@ update();
 </html>
 """
 
-components.html(game_html, height=790, scrolling=True)
-
-st.caption(
-    "⚽ 시각장애인을 위한 소리 중심 축구 체험 게임 | "
-    "김소민"
-)
+components.html(html, height=1050, scrolling=True)
