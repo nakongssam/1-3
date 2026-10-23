@@ -3,59 +3,136 @@ import streamlit as st
 from collections import deque
 
 st.set_page_config(
-    page_title="쉬운 지하철 길찾기",
+    page_title="Easy Metro | 쉬운 지하철",
     page_icon="🚇",
     layout="centered"
 )
 
-# 화면 디자인
+# 디자인
 st.markdown("""
 <style>
 .stApp {
-    background-color: #D2E4F4;
+    background: #F8FAF7;
 }
 .block-container {
-    max-width: 750px;
-    padding-top: 30px;
+    max-width: 680px;
+    padding-top: 20px;
+    padding-bottom: 50px;
 }
-h1 {
+h1, h2, h3 {
+    color: #1B2B20 !important;
+}
+.hero {
+    padding: 28px 5px 18px;
+}
+.hello {
+    color: #62B76C;
+    font-size: 20px;
+    font-weight: 700;
+}
+.hero-title {
+    color: #17291D;
+    font-size: 38px;
+    font-weight: 800;
+    line-height: 1.35;
+    margin: 12px 0;
+}
+.hero-desc {
+    color: #728476;
+    font-size: 17px;
+}
+.train-art {
     text-align: center;
-    color: #172B4D;
+    font-size: 95px;
+    padding: 20px 0 35px;
+    background:
+        radial-gradient(circle at 35% 50%,
+        #E1F5DF 0%, transparent 38%),
+        radial-gradient(circle at 70% 45%,
+        #FFF4C9 0%, transparent 30%);
+    border-radius: 30px;
+    margin-bottom: 20px;
 }
-.stSelectbox label {
-    font-size: 24px !important;
-    font-weight: bold;
+.section-title {
+    font-size: 24px;
+    font-weight: 800;
+    color: #203B29;
+    margin: 15px 0;
 }
-div[data-baseweb="select"] {
-    font-size: 22px;
+div[data-testid="stSelectbox"] label {
+    font-size: 21px !important;
+    font-weight: 700 !important;
+    color: #23452E !important;
+}
+div[data-baseweb="select"] > div {
+    background: #F0F7F0 !important;
+    border: 1px solid #DCEBDD !important;
+    border-radius: 15px !important;
+    min-height: 60px;
+    font-size: 21px;
 }
 .stButton > button {
-    background-color: #F02020;
-    color: white;
-    font-size: 26px;
-    font-weight: bold;
     width: 100%;
+    background: #287E4B !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 30px !important;
     min-height: 65px;
-    border-radius: 12px;
-    border: none;
+    font-size: 23px !important;
+    font-weight: 800 !important;
 }
 .stButton > button:hover {
-    background-color: #C90000;
-    color: white;
+    background: #176238 !important;
+    color: white !important;
 }
-.result {
-    background-color: white;
+.result-card {
+    background: white;
+    border: 1px solid #E0EDE1;
+    border-radius: 20px;
     padding: 22px;
-    border-radius: 15px;
-    font-size: 22px;
-    line-height: 1.9;
-    color: #172B4D;
+    margin: 16px 0;
+    box-shadow: 0 5px 18px #193A2010;
+    color: #203B29;
+}
+.result-title {
+    color: #247B48;
+    font-size: 23px;
+    font-weight: 800;
+}
+.result-text {
+    font-size: 20px;
+    line-height: 2;
+}
+.route-step {
+    background: #FFFFFF;
+    padding: 18px;
+    border-radius: 16px;
+    margin: 12px 0;
+    font-size: 20px;
+    color: #203B29;
+}
+.footer {
+    text-align: center;
+    color: #77947D;
+    font-size: 15px;
+    padding-top: 30px;
+}
+@media(max-width: 500px) {
+    .hero-title {
+        font-size: 31px;
+    }
+    .block-container {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
 }
 </style>
 """, unsafe_allow_html=True)
 
-# 서울 지하철 일부 주요 역
-lines = {
+
+# 일부 주요 역을 사용한 학습용 노선 데이터
+# 실제 노선의 모든 역이 포함된 것은 아닙니다.
+LINES = {
     "1호선": [
         "서울역", "시청", "종각", "종로3가",
         "종로5가", "동대문", "동묘앞", "신설동"
@@ -64,76 +141,51 @@ lines = {
         "시청", "을지로입구", "을지로3가",
         "을지로4가", "동대문역사문화공원",
         "신당", "왕십리", "성수", "건대입구",
-        "잠실", "종합운동장", "삼성", "선릉",
-        "역삼", "강남", "교대", "사당",
-        "신도림", "홍대입구", "신촌",
-        "이대", "아현", "충정로"
+        "잠실", "종합운동장", "삼성",
+        "선릉", "역삼", "강남", "교대",
+        "사당"
     ],
     "3호선": [
-        "구파발", "연신내", "불광", "녹번",
-        "홍제", "독립문", "경복궁", "안국",
-        "종로3가", "을지로3가", "충무로",
-        "동대입구", "약수", "금호", "옥수",
+        "경복궁", "안국", "종로3가",
+        "을지로3가", "충무로", "약수",
         "신사", "고속터미널", "교대",
-        "남부터미널", "양재", "도곡",
-        "대치", "학여울", "대청", "수서"
+        "양재", "수서"
     ],
     "4호선": [
         "혜화", "동대문", "동대문역사문화공원",
-        "충무로", "명동", "회현", "서울역",
-        "숙대입구", "삼각지", "신용산",
-        "이촌", "동작", "총신대입구(이수)",
-        "사당"
+        "충무로", "명동", "회현",
+        "서울역", "삼각지", "사당"
     ],
     "5호선": [
-        "김포공항", "마곡", "발산", "까치산",
-        "목동", "오목교", "영등포구청",
-        "신길", "여의도", "마포", "공덕",
-        "충정로", "서대문", "광화문",
-        "종로3가", "을지로4가",
-        "동대문역사문화공원", "청구",
+        "김포공항", "여의도", "공덕",
+        "충정로", "광화문", "종로3가",
+        "을지로4가", "동대문역사문화공원",
         "왕십리", "군자", "천호"
     ],
     "6호선": [
-        "응암", "역촌", "불광", "독바위",
-        "연신내", "디지털미디어시티",
-        "월드컵경기장", "합정", "상수",
-        "광흥창", "대흥", "공덕",
-        "효창공원앞", "삼각지", "이태원",
-        "약수", "청구", "신당", "동묘앞",
-        "안암", "석계"
+        "불광", "연신내", "합정",
+        "공덕", "삼각지", "약수",
+        "신당", "동묘앞"
     ],
     "7호선": [
-        "장암", "도봉산", "노원", "태릉입구",
-        "먹골", "중화", "상봉", "면목",
-        "군자", "어린이대공원", "건대입구",
-        "강남구청", "논현", "반포",
-        "고속터미널", "내방",
-        "총신대입구(이수)", "남성",
-        "숭실대입구", "보라매", "신풍",
-        "대림", "가산디지털단지",
-        "철산", "광명사거리", "온수"
+        "노원", "상봉", "군자",
+        "건대입구", "강남구청",
+        "고속터미널", "사당"
     ],
     "8호선": [
-        "별내", "다산", "구리", "암사역사공원",
-        "암사", "천호", "강동구청", "몽촌토성",
-        "잠실", "석촌", "송파", "가락시장",
-        "문정", "장지", "복정", "산성",
-        "남한산성입구", "단대오거리", "신흥",
-        "수진", "모란"
+        "별내", "구리", "천호",
+        "잠실", "석촌", "가락시장",
+        "복정", "모란"
     ],
     "9호선": [
-        "개화", "김포공항", "가양", "염창",
-        "당산", "국회의사당", "여의도",
-        "노량진", "동작", "고속터미널",
-        "신논현", "언주", "선정릉",
-        "봉은사", "종합운동장", "석촌",
-        "올림픽공원", "중앙보훈병원"
+        "김포공항", "가양", "당산",
+        "여의도", "노량진",
+        "고속터미널", "신논현",
+        "종합운동장", "석촌"
     ]
 }
 
-# 노선별 색상
-colors = {
+COLORS = {
     "1호선": "#0052A4",
     "2호선": "#00A84D",
     "3호선": "#EF7C1C",
@@ -145,25 +197,27 @@ colors = {
     "9호선": "#BDB092"
 }
 
-# 역과 호선을 함께 관리하는 그래프
+
+# 역 연결 그래프 생성
 graph = {}
+station_lines = {}
 
 def connect(a, b, cost):
     graph.setdefault(a, []).append((b, cost))
     graph.setdefault(b, []).append((a, cost))
 
-station_lines = {}
-
-for line, stations in lines.items():
+for line, stations in LINES.items():
     for station in stations:
         station_lines.setdefault(station, []).append(line)
 
     for i in range(len(stations) - 1):
-        a = (stations[i], line)
-        b = (stations[i + 1], line)
-        connect(a, b, 0)
+        connect(
+            (stations[i], line),
+            (stations[i + 1], line),
+            0
+        )
 
-# 같은 역에서 다른 호선으로 환승
+# 환승 연결
 for station, available in station_lines.items():
     for i in range(len(available)):
         for j in range(i + 1, len(available)):
@@ -173,118 +227,148 @@ for station, available in station_lines.items():
                 1
             )
 
-# 0-1 BFS: 환승 횟수 최소화
-def find_route(start, end):
-    if start == end:
-        return [], 0
 
+# 환승 횟수가 적은 경로 탐색
+def find_route(start, end):
     queue = deque()
-    distance = {}
-    previous = {}
+    dist = {}
+    prev = {}
 
     for line in station_lines[start]:
         node = (start, line)
-        distance[node] = 0
-        previous[node] = None
         queue.append(node)
+        dist[node] = 0
+        prev[node] = None
 
     while queue:
         current = queue.popleft()
 
         for next_node, cost in graph.get(current, []):
-            new_dist = distance[current] + cost
+            new_cost = dist[current] + cost
 
-            if new_dist < distance.get(next_node, float("inf")):
-                distance[next_node] = new_dist
-                previous[next_node] = current
+            if new_cost < dist.get(next_node, float("inf")):
+                dist[next_node] = new_cost
+                prev[next_node] = current
 
                 if cost == 0:
                     queue.appendleft(next_node)
                 else:
                     queue.append(next_node)
 
-    ends = [
+    targets = [
         (end, line)
         for line in station_lines[end]
-        if (end, line) in distance
+        if (end, line) in dist
     ]
 
-    if not ends:
+    if not targets:
         return [], 0
 
-    target = min(ends, key=lambda x: distance[x])
-    transfers = distance[target]
+    target = min(targets, key=lambda x: dist[x])
+    transfers = dist[target]
 
     path = []
     while target is not None:
         path.append(target)
-        target = previous[target]
+        target = prev[target]
 
-    path.reverse()
-    return path, transfers
+    return path[::-1], transfers
 
 
-# 화면
-st.title("🚇 쉬운 지하철 길찾기")
+# 상단
+st.markdown("### ☰ &nbsp; EASY METRO 🌿")
+
+st.markdown("""
+<div class="hero">
+    <div class="hello">Hello, Traveler! 👋</div>
+    <div class="hero-title">
+        오늘은 어디로<br>
+        떠나시나요?
+    </div>
+    <div class="hero-desc">
+        복잡한 지하철도 쉽고 편안하게.<br>
+        목적지만 선택하면 길을 알려드려요.
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
 st.markdown(
-    "<h3 style='text-align:center;'>"
-    "어디로 가시나요?</h3>",
+    '<div class="train-art">🚇 🌿</div>',
+    unsafe_allow_html=True
+)
+
+st.markdown(
+    '<div class="section-title">'
+    '📍 나의 지하철 길찾기</div>',
     unsafe_allow_html=True
 )
 
 stations = sorted(station_lines.keys())
 
-col1, col2 = st.columns(2)
+start = st.selectbox(
+    "🟢 출발역",
+    stations,
+    index=stations.index("서울역")
+)
 
-with col1:
-    start = st.selectbox(
-        "🚉 출발역",
-        stations,
-        index=stations.index("서울역")
-    )
+st.markdown(
+    "<h2 style='text-align:center;color:#28844C;'>"
+    "↓</h2>",
+    unsafe_allow_html=True
+)
 
-with col2:
-    end = st.selectbox(
-        "🏁 도착역",
-        stations,
-        index=stations.index("시청")
-    )
+end = st.selectbox(
+    "🔴 도착역",
+    stations,
+    index=stations.index("시청")
+)
 
 st.write("")
 
-if st.button("🔍 길찾기", type="primary"):
+if st.button("🚇 길찾기 시작하기 →"):
 
     if start == end:
-        st.warning("출발역과 도착역이 같습니다.")
+        st.warning(
+            "출발역과 도착역이 같아요. "
+            "다른 역을 선택해 주세요."
+        )
 
     else:
         try:
             path, transfers = find_route(start, end)
 
             if not path:
-                st.error("경로를 찾을 수 없습니다.")
+                st.error(
+                    "선택한 역 사이의 경로를 "
+                    "찾지 못했어요."
+                )
 
             else:
-                st.success("길을 찾았습니다!")
+                st.markdown("""
+                <div class="result-card">
+                    <div class="result-title">
+                        🌱 길을 찾았어요!
+                    </div>
+                    <p>아래 안내를 따라 이동해 보세요.</p>
+                </div>
+                """, unsafe_allow_html=True)
 
                 st.markdown(
-                    f"<div class='result'>"
-                    f"<b>🚉 출발:</b> {start}<br>"
-                    f"<b>🏁 도착:</b> {end}<br>"
-                    f"<b>🔄 환승:</b> {transfers}번"
-                    f"</div>",
+                    f'<div class="result-card">'
+                    f'<div class="result-text">'
+                    f'🚉 <b>출발:</b> {start}<br>'
+                    f'🏁 <b>도착:</b> {end}<br>'
+                    f'🔄 <b>환승:</b> {transfers}번'
+                    f'</div></div>',
                     unsafe_allow_html=True
                 )
 
-                # 이동 안내 단계 생성
+                # 탑승 구간 분리
                 steps = []
                 current_line = path[0][1]
                 section_start = path[0][0]
 
-                for i in range(1, len(path)):
-                    station, line = path[i]
-
+                for station, line in path[1:]:
                     if line != current_line:
                         steps.append(
                             (current_line, section_start, station)
@@ -296,44 +380,48 @@ if st.button("🔍 길찾기", type="primary"):
                     (current_line, section_start, end)
                 )
 
-                st.subheader("📍 이렇게 이동하세요")
+                st.subheader("🚉 이동 안내")
 
                 for i, (line, a, b) in enumerate(steps):
-                    color = colors.get(line, "#444444")
+                    color = COLORS.get(line, "#287E4B")
 
                     st.markdown(
-                        f"<div style='background:white;"
-                        f"padding:18px;border-radius:12px;"
-                        f"margin-bottom:12px;"
-                        f"border-left:9px solid {color};"
-                        f"color:#172B4D;font-size:22px;'>"
-                        f"<b>{i+1}. {line} 탑승</b><br>"
-                        f"{a} → {b}"
-                        f"</div>",
+                        f'<div class="route-step" '
+                        f'style="border-left:8px solid {color};">'
+                        f'<b>{i+1}. {line} 이용</b><br>'
+                        f'{a} → {b}'
+                        f'</div>',
                         unsafe_allow_html=True
                     )
 
                     if i < len(steps) - 1:
-                        st.info(f"🔄 {b}역에서 환승하세요.")
+                        st.info(
+                            f"🔄 {b}역에서 "
+                            f"{steps[i+1][0]}으로 환승하세요."
+                        )
 
                 if transfers == 0:
                     st.success(
-                        "😊 환승 없이 이동할 수 있습니다!"
+                        "💚 환승 없이 갈 수 있어요!"
                     )
 
         except Exception:
             st.error(
-                "길찾기 중 문제가 발생했습니다. "
+                "일시적인 문제가 발생했어요. "
                 "다시 시도해 주세요."
             )
 
-st.divider()
+
+st.markdown("""
+<div class="footer">
+    💚 누구나 쉽게 이용하는 지하철 안내<br>
+    Made with Easy Metro
+</div>
+""", unsafe_allow_html=True)
 
 st.caption(
-    "⚠️ 이 앱은 학습용 예시입니다. "
-    "서울 지하철 일부 역만 포함하며, "
-    "실제 최단 경로·소요 시간·운행 정보를 "
-    "보장하지 않습니다. "
-    "일부 노선의 역이 생략되어 있으며 "
-    "실제 연결 관계와 다를 수 있습니다."
+    "⚠️ 학습용 시제품입니다. 일부 역만 포함하며 "
+    "생략된 역 사이를 직접 연결한 단순화된 데이터이므로 "
+    "실제 지하철 경로와 다를 수 있습니다. "
+    "실제 이동 시 공식 지하철 길찾기를 확인하세요."
 )
