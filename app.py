@@ -1,427 +1,377 @@
 
 import streamlit as st
-from collections import deque
+from google import genai
 
+# -----------------------------
+# 기본 설정
+# -----------------------------
 st.set_page_config(
-    page_title="Easy Metro | 쉬운 지하철",
+    page_title="쉬운 지하철 AI 도우미",
     page_icon="🚇",
     layout="centered"
 )
 
-# 디자인
+# -----------------------------
+# 화면 디자인
+# -----------------------------
 st.markdown("""
 <style>
 .stApp {
-    background: #F8FAF7;
+    background-color: #F8FAF7;
 }
+
 .block-container {
-    max-width: 680px;
-    padding-top: 20px;
-    padding-bottom: 50px;
+    max-width: 760px;
+    padding-top: 25px;
+    padding-bottom: 70px;
 }
+
 h1, h2, h3 {
-    color: #1B2B20 !important;
+    color: #1C3324 !important;
 }
+
 .hero {
-    padding: 28px 5px 18px;
+    padding: 20px 0 25px;
 }
+
 .hello {
-    color: #62B76C;
+    color: #63B66E;
     font-size: 20px;
     font-weight: 700;
 }
+
 .hero-title {
-    color: #17291D;
-    font-size: 38px;
+    font-size: 36px;
     font-weight: 800;
-    line-height: 1.35;
-    margin: 12px 0;
+    color: #192A1E;
+    margin-top: 12px;
 }
+
 .hero-desc {
-    color: #728476;
-    font-size: 17px;
+    color: #738576;
+    font-size: 18px;
+    line-height: 1.8;
 }
-.train-art {
-    text-align: center;
-    font-size: 95px;
-    padding: 20px 0 35px;
-    background:
-        radial-gradient(circle at 35% 50%,
-        #E1F5DF 0%, transparent 38%),
-        radial-gradient(circle at 70% 45%,
-        #FFF4C9 0%, transparent 30%);
-    border-radius: 30px;
-    margin-bottom: 20px;
-}
-.section-title {
-    font-size: 24px;
-    font-weight: 800;
-    color: #203B29;
-    margin: 15px 0;
-}
-div[data-testid="stSelectbox"] label {
-    font-size: 21px !important;
-    font-weight: 700 !important;
-    color: #23452E !important;
-}
-div[data-baseweb="select"] > div {
-    background: #F0F7F0 !important;
-    border: 1px solid #DCEBDD !important;
-    border-radius: 15px !important;
-    min-height: 60px;
-    font-size: 21px;
-}
+
 .stButton > button {
-    width: 100%;
-    background: #287E4B !important;
+    background-color: #287E4B !important;
     color: white !important;
+    border-radius: 25px !important;
     border: none !important;
-    border-radius: 30px !important;
-    min-height: 65px;
-    font-size: 23px !important;
-    font-weight: 800 !important;
+    min-height: 48px;
+    font-size: 17px !important;
+    font-weight: 700 !important;
 }
+
 .stButton > button:hover {
-    background: #176238 !important;
+    background-color: #176238 !important;
     color: white !important;
 }
-.result-card {
-    background: white;
-    border: 1px solid #E0EDE1;
+
+div[data-testid="stChatMessage"] {
     border-radius: 20px;
-    padding: 22px;
-    margin: 16px 0;
-    box-shadow: 0 5px 18px #193A2010;
-    color: #203B29;
+    padding: 15px;
+    margin-bottom: 12px;
 }
-.result-title {
-    color: #247B48;
-    font-size: 23px;
-    font-weight: 800;
+
+div[data-testid="stChatMessage"]:has(
+    [data-testid="chatAvatarIcon-assistant"]
+) {
+    background-color: #E6F4E8;
 }
-.result-text {
-    font-size: 20px;
-    line-height: 2;
+
+div[data-testid="stChatMessage"]:has(
+    [data-testid="chatAvatarIcon-user"]
+) {
+    background-color: #FFFFFF;
 }
-.route-step {
-    background: #FFFFFF;
-    padding: 18px;
-    border-radius: 16px;
-    margin: 12px 0;
-    font-size: 20px;
-    color: #203B29;
+
+div[data-testid="stChatMessageContent"] {
+    font-size: 19px;
+    line-height: 1.8;
 }
+
+div[data-testid="stChatInput"] {
+    border-radius: 20px;
+    border: 2px solid #CFE5D2;
+}
+
 .footer {
     text-align: center;
-    color: #77947D;
-    font-size: 15px;
-    padding-top: 30px;
+    color: #78947E;
+    padding: 25px 0;
+    font-size: 14px;
 }
-@media(max-width: 500px) {
+
+@media (max-width: 500px) {
     .hero-title {
-        font-size: 31px;
+        font-size: 29px;
     }
     .block-container {
-        padding-left: 16px;
-        padding-right: 16px;
+        padding-left: 14px;
+        padding-right: 14px;
     }
 }
 </style>
 """, unsafe_allow_html=True)
 
+# -----------------------------
+# AI 안내 규칙
+# -----------------------------
+SYSTEM_PROMPT = """
+당신은 한국의 어르신을 위한 친절한 지하철 안내 AI입니다.
 
-# 일부 주요 역을 사용한 학습용 노선 데이터
-# 실제 노선의 모든 역이 포함된 것은 아닙니다.
-LINES = {
-    "1호선": [
-        "서울역", "시청", "종각", "종로3가",
-        "종로5가", "동대문", "동묘앞", "신설동"
-    ],
-    "2호선": [
-        "시청", "을지로입구", "을지로3가",
-        "을지로4가", "동대문역사문화공원",
-        "신당", "왕십리", "성수", "건대입구",
-        "잠실", "종합운동장", "삼성",
-        "선릉", "역삼", "강남", "교대",
-        "사당"
-    ],
-    "3호선": [
-        "경복궁", "안국", "종로3가",
-        "을지로3가", "충무로", "약수",
-        "신사", "고속터미널", "교대",
-        "양재", "수서"
-    ],
-    "4호선": [
-        "혜화", "동대문", "동대문역사문화공원",
-        "충무로", "명동", "회현",
-        "서울역", "삼각지", "사당"
-    ],
-    "5호선": [
-        "김포공항", "여의도", "공덕",
-        "충정로", "광화문", "종로3가",
-        "을지로4가", "동대문역사문화공원",
-        "왕십리", "군자", "천호"
-    ],
-    "6호선": [
-        "불광", "연신내", "합정",
-        "공덕", "삼각지", "약수",
-        "신당", "동묘앞"
-    ],
-    "7호선": [
-        "노원", "상봉", "군자",
-        "건대입구", "강남구청",
-        "고속터미널", "사당"
-    ],
-    "8호선": [
-        "별내", "구리", "천호",
-        "잠실", "석촌", "가락시장",
-        "복정", "모란"
-    ],
-    "9호선": [
-        "김포공항", "가양", "당산",
-        "여의도", "노량진",
-        "고속터미널", "신논현",
-        "종합운동장", "석촌"
-    ]
-}
+역할:
+1. 서울 및 수도권 지하철 노선 질문에 답합니다.
+2. 출발역과 도착역이 있으면 이동 방법을 설명합니다.
+3. 몇 호선을 타야 하는지 알려줍니다.
+4. 환승이 필요하면 환승역을 알려줍니다.
+5. 지하철 용어를 쉬운 한국어로 설명합니다.
 
-COLORS = {
-    "1호선": "#0052A4",
-    "2호선": "#00A84D",
-    "3호선": "#EF7C1C",
-    "4호선": "#00A5DE",
-    "5호선": "#996CAC",
-    "6호선": "#CD7C2F",
-    "7호선": "#747F00",
-    "8호선": "#E6186C",
-    "9호선": "#BDB092"
-}
+답변 규칙:
+- 존댓말을 사용하세요.
+- 어르신도 이해하기 쉬운 짧은 문장으로 답하세요.
+- 중요한 정보는 번호를 붙여 설명하세요.
+- 한 번에 너무 많은 정보를 주지 마세요.
+- 출발역이나 도착역이 없으면 질문하세요.
+- 확실하지 않은 노선 정보는 추측하지 마세요.
+- 실제 경로와 운행 정보는 변동될 수 있음을 안내하세요.
+- 실시간 열차 위치, 지연, 막차 시간은 확인할 수 없다고
+  설명하세요.
+- 교통약자 이동 편의시설 정보는 공식 자료 확인을 권하세요.
+- 지하철과 관련 없는 질문은 정중하게 안내하세요.
+"""
 
+# -----------------------------
+# API 키 확인
+# -----------------------------
+try:
+    API_KEY = st.secrets.get("GEMINI_API_KEY", "")
+except Exception:
+    API_KEY = ""
 
-# 역 연결 그래프 생성
-graph = {}
-station_lines = {}
+# -----------------------------
+# 채팅 기록
+# -----------------------------
+WELCOME = (
+    "안녕하세요! 😊\n\n"
+    "저는 **쉬운 지하철 AI 도우미**예요.\n\n"
+    "어디로 가고 싶으신가요?\n\n"
+    "출발역과 도착역을 알려주시면 "
+    "쉽게 안내해 드릴게요. 🚇"
+)
 
-def connect(a, b, cost):
-    graph.setdefault(a, []).append((b, cost))
-    graph.setdefault(b, []).append((a, cost))
-
-for line, stations in LINES.items():
-    for station in stations:
-        station_lines.setdefault(station, []).append(line)
-
-    for i in range(len(stations) - 1):
-        connect(
-            (stations[i], line),
-            (stations[i + 1], line),
-            0
-        )
-
-# 환승 연결
-for station, available in station_lines.items():
-    for i in range(len(available)):
-        for j in range(i + 1, len(available)):
-            connect(
-                (station, available[i]),
-                (station, available[j]),
-                1
-            )
-
-
-# 환승 횟수가 적은 경로 탐색
-def find_route(start, end):
-    queue = deque()
-    dist = {}
-    prev = {}
-
-    for line in station_lines[start]:
-        node = (start, line)
-        queue.append(node)
-        dist[node] = 0
-        prev[node] = None
-
-    while queue:
-        current = queue.popleft()
-
-        for next_node, cost in graph.get(current, []):
-            new_cost = dist[current] + cost
-
-            if new_cost < dist.get(next_node, float("inf")):
-                dist[next_node] = new_cost
-                prev[next_node] = current
-
-                if cost == 0:
-                    queue.appendleft(next_node)
-                else:
-                    queue.append(next_node)
-
-    targets = [
-        (end, line)
-        for line in station_lines[end]
-        if (end, line) in dist
+if "messages" not in st.session_state:
+    st.session_state.messages = [
+        {"role": "assistant", "content": WELCOME}
     ]
 
-    if not targets:
-        return [], 0
-
-    target = min(targets, key=lambda x: dist[x])
-    transfers = dist[target]
-
-    path = []
-    while target is not None:
-        path.append(target)
-        target = prev[target]
-
-    return path[::-1], transfers
-
-
-# 상단
-st.markdown("### ☰ &nbsp; EASY METRO 🌿")
+# -----------------------------
+# 상단 화면
+# -----------------------------
+st.markdown("### 🚇 EASY METRO 🌿")
 
 st.markdown("""
 <div class="hero">
     <div class="hello">Hello, Traveler! 👋</div>
     <div class="hero-title">
-        오늘은 어디로<br>
-        떠나시나요?
+        무엇이 궁금하세요?
     </div>
     <div class="hero-desc">
         복잡한 지하철도 쉽고 편안하게.<br>
-        목적지만 선택하면 길을 알려드려요.
+        AI 도우미에게 편하게 물어보세요.
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-st.markdown(
-    '<div class="train-art">🚇 🌿</div>',
-    unsafe_allow_html=True
+st.info(
+    "🌱 지하철 노선, 환승 방법, "
+    "이용 방법을 질문할 수 있어요."
 )
 
-st.markdown(
-    '<div class="section-title">'
-    '📍 나의 지하철 길찾기</div>',
-    unsafe_allow_html=True
+# -----------------------------
+# 추천 질문
+# -----------------------------
+st.markdown("#### 💡 이런 질문을 해보세요")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    example1 = st.button(
+        "🚉 서울역 → 강남역",
+        use_container_width=True
+    )
+
+with col2:
+    example2 = st.button(
+        "🔄 환승이 뭐예요?",
+        use_container_width=True
+    )
+
+col3, col4 = st.columns(2)
+
+with col3:
+    example3 = st.button(
+        "🚇 2호선 알려줘",
+        use_container_width=True
+    )
+
+with col4:
+    example4 = st.button(
+        "♿ 엘리베이터 이용",
+        use_container_width=True
+    )
+
+selected_question = None
+
+if example1:
+    selected_question = (
+        "서울역에서 강남역까지 "
+        "지하철로 어떻게 가나요?"
+    )
+elif example2:
+    selected_question = (
+        "지하철 환승이 무엇인지 "
+        "쉽게 설명해 주세요."
+    )
+elif example3:
+    selected_question = (
+        "서울 지하철 2호선에 대해 알려주세요."
+    )
+elif example4:
+    selected_question = (
+        "지하철역에서 엘리베이터를 "
+        "이용하는 방법을 알려주세요."
+    )
+
+st.divider()
+
+# -----------------------------
+# 대화 기록 표시
+# -----------------------------
+st.markdown("### 💬 AI와 대화하기")
+
+for message in st.session_state.messages:
+    avatar = (
+        "🌿" if message["role"] == "assistant"
+        else "👤"
+    )
+
+    with st.chat_message(
+        message["role"],
+        avatar=avatar
+    ):
+        st.markdown(message["content"])
+
+# -----------------------------
+# 사용자 입력
+# -----------------------------
+user_input = st.chat_input(
+    "지하철에 대해 질문해 보세요..."
 )
 
-stations = sorted(station_lines.keys())
+prompt = selected_question or user_input
 
-start = st.selectbox(
-    "🟢 출발역",
-    stations,
-    index=stations.index("서울역")
-)
+if prompt:
 
-st.markdown(
-    "<h2 style='text-align:center;color:#28844C;'>"
-    "↓</h2>",
-    unsafe_allow_html=True
-)
+    # 사용자 질문 저장
+    st.session_state.messages.append({
+        "role": "user",
+        "content": prompt
+    })
 
-end = st.selectbox(
-    "🔴 도착역",
-    stations,
-    index=stations.index("시청")
-)
+    with st.chat_message("user", avatar="👤"):
+        st.markdown(prompt)
 
-st.write("")
+    with st.chat_message("assistant", avatar="🌿"):
 
-if st.button("🚇 길찾기 시작하기 →"):
-
-    if start == end:
-        st.warning(
-            "출발역과 도착역이 같아요. "
-            "다른 역을 선택해 주세요."
-        )
-
-    else:
-        try:
-            path, transfers = find_route(start, end)
-
-            if not path:
-                st.error(
-                    "선택한 역 사이의 경로를 "
-                    "찾지 못했어요."
-                )
-
-            else:
-                st.markdown("""
-                <div class="result-card">
-                    <div class="result-title">
-                        🌱 길을 찾았어요!
-                    </div>
-                    <p>아래 안내를 따라 이동해 보세요.</p>
-                </div>
-                """, unsafe_allow_html=True)
-
-                st.markdown(
-                    f'<div class="result-card">'
-                    f'<div class="result-text">'
-                    f'🚉 <b>출발:</b> {start}<br>'
-                    f'🏁 <b>도착:</b> {end}<br>'
-                    f'🔄 <b>환승:</b> {transfers}번'
-                    f'</div></div>',
-                    unsafe_allow_html=True
-                )
-
-                # 탑승 구간 분리
-                steps = []
-                current_line = path[0][1]
-                section_start = path[0][0]
-
-                for station, line in path[1:]:
-                    if line != current_line:
-                        steps.append(
-                            (current_line, section_start, station)
-                        )
-                        current_line = line
-                        section_start = station
-
-                steps.append(
-                    (current_line, section_start, end)
-                )
-
-                st.subheader("🚉 이동 안내")
-
-                for i, (line, a, b) in enumerate(steps):
-                    color = COLORS.get(line, "#287E4B")
-
-                    st.markdown(
-                        f'<div class="route-step" '
-                        f'style="border-left:8px solid {color};">'
-                        f'<b>{i+1}. {line} 이용</b><br>'
-                        f'{a} → {b}'
-                        f'</div>',
-                        unsafe_allow_html=True
-                    )
-
-                    if i < len(steps) - 1:
-                        st.info(
-                            f"🔄 {b}역에서 "
-                            f"{steps[i+1][0]}으로 환승하세요."
-                        )
-
-                if transfers == 0:
-                    st.success(
-                        "💚 환승 없이 갈 수 있어요!"
-                    )
-
-        except Exception:
-            st.error(
-                "일시적인 문제가 발생했어요. "
-                "다시 시도해 주세요."
+        if not API_KEY:
+            answer = (
+                "⚠️ AI 연결 설정이 필요합니다.\n\n"
+                "Streamlit Secrets에 "
+                "`GEMINI_API_KEY`를 등록해 주세요."
             )
 
+        else:
+            try:
+                client = genai.Client(
+                    api_key=API_KEY
+                )
+
+                # 기존 대화를 텍스트로 전달
+                history = []
+
+                for msg in st.session_state.messages[-12:]:
+                    role = (
+                        "사용자"
+                        if msg["role"] == "user"
+                        else "도우미"
+                    )
+
+                    history.append(
+                        f"{role}: {msg['content']}"
+                    )
+
+                conversation = "\n\n".join(history)
+
+                with st.spinner(
+                    "🌱 지하철 정보를 생각하고 있어요..."
+                ):
+                    response = client.models.generate_content(
+                        model="gemini-2.5-flash-lite",
+                        contents=conversation,
+                        config={
+                            "system_instruction": SYSTEM_PROMPT,
+                            "temperature": 0.2
+                        }
+                    )
+
+                answer = response.text
+
+                if not answer:
+                    answer = (
+                        "죄송합니다. 답변을 만들지 못했어요. "
+                        "다시 질문해 주세요."
+                    )
+
+            except Exception:
+                answer = (
+                    "⚠️ AI 연결 중 문제가 발생했어요.\n\n"
+                    "API 키와 인터넷 연결 상태를 "
+                    "확인한 후 다시 시도해 주세요."
+                )
+
+        st.markdown(answer)
+
+    # 답변 저장
+    st.session_state.messages.append({
+        "role": "assistant",
+        "content": answer
+    })
+
+# -----------------------------
+# 대화 초기화
+# -----------------------------
+st.write("")
+
+if st.button(
+    "🗑️ 대화 처음부터 시작하기",
+    use_container_width=True
+):
+    st.session_state.messages = [
+        {"role": "assistant", "content": WELCOME}
+    ]
+    st.rerun()
 
 st.markdown("""
 <div class="footer">
     💚 누구나 쉽게 이용하는 지하철 안내<br>
-    Made with Easy Metro
+    Easy Metro AI Assistant
 </div>
 """, unsafe_allow_html=True)
 
 st.caption(
-    "⚠️ 학습용 시제품입니다. 일부 역만 포함하며 "
-    "생략된 역 사이를 직접 연결한 단순화된 데이터이므로 "
-    "실제 지하철 경로와 다를 수 있습니다. "
-    "실제 이동 시 공식 지하철 길찾기를 확인하세요."
+    "⚠️ AI 답변에는 오류가 있을 수 있습니다. "
+    "실제 이동 전에는 공식 지하철 노선도와 "
+    "운행 정보를 확인해 주세요."
 )
