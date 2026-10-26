@@ -1,195 +1,479 @@
 
-
 import streamlit as st
 import pandas as pd
 from datetime import datetime
 
 st.set_page_config(
-    page_title="졸업어때?",
+    page_title="졸업어때? | SLEEP LAB",
     page_icon="💤",
-    layout="centered"
+    layout="centered",
+    initial_sidebar_state="collapsed"
 )
 
+# -----------------------
 # 디자인
+# -----------------------
 st.markdown("""
 <style>
 .stApp {
-    background: linear-gradient(180deg, #f1f5ff 0%, #ffffff 65%);
-    color: #28345c;
+    background: #E84B25;
 }
 .block-container {
-    max-width: 760px;
-    padding-top: 2rem;
+    max-width: 600px;
+    padding-top: 1.5rem;
+    padding-bottom: 3rem;
 }
-h1, h2, h3 {
-    color: #344a9a !important;
+h1, h2, h3, p, label {
+    font-family: 'Arial', sans-serif;
 }
 .hero {
-    background: linear-gradient(120deg, #dce7ff, #f0eaff);
-    padding: 26px;
-    border-radius: 25px;
-    margin-bottom: 18px;
+    background: #39235E;
+    border-radius: 28px;
+    padding: 28px 24px;
+    color: white;
+    margin-bottom: 20px;
+}
+.hero .small {
+    color: #FFE16B;
+    font-size: 13px;
+    letter-spacing: 3px;
+    font-weight: bold;
 }
 .hero h1 {
-    margin: 0;
-    font-size: 2.3rem !important;
+    font-size: clamp(3rem, 12vw, 5rem);
+    line-height: 1;
+    letter-spacing: -3px;
+    color: white !important;
+    margin: 18px 0;
+    font-weight: 900;
 }
-.hero p {
-    margin: 8px 0 0;
-    color: #55638b;
+.hero .desc {
+    color: #E7DFFF;
+    font-size: 15px;
 }
-.note {
-    background: #eef2ff;
-    border-radius: 16px;
-    padding: 16px;
-    margin: 12px 0;
-    color: #465585;
+.hero .moon {
+    font-size: 55px;
+    text-align: right;
 }
-div.stButton > button[kind="primary"] {
-    background: #7475ed;
-    border: 0;
-    border-radius: 15px;
+div[data-testid="stChatMessage"] {
+    border-radius: 20px;
+    padding: 14px;
+    margin-bottom: 12px;
+}
+div[data-testid="stChatMessage"]:has(
+    [data-testid="chatAvatarIcon-user"]
+) {
+    background: #FFE16B;
+    color: #271944;
+}
+div[data-testid="stChatMessage"]:has(
+    [data-testid="chatAvatarIcon-assistant"]
+) {
+    background: #39235E;
+    color: white;
+}
+div[data-testid="stChatMessage"] p {
+    color: inherit;
+}
+div[data-testid="stChatMessage"] * {
+    overflow-wrap: anywhere;
+}
+div.stButton > button {
+    border-radius: 30px;
+    border: 2px solid #39235E;
+    background: #FFE16B;
+    color: #39235E;
+    font-weight: 800;
+    min-height: 44px;
+}
+div.stButton > button:hover {
+    background: white;
+    color: #39235E;
+    border-color: #39235E;
+}
+div[data-testid="stChatInput"] {
+    border-radius: 18px;
 }
 div[data-testid="stMetric"] {
-    background: #eef2ff;
-    border-radius: 15px;
-    padding: 14px;
+    background: #FFE16B;
+    padding: 16px;
+    border-radius: 18px;
+}
+div[data-testid="stMetric"] * {
+    color: #39235E;
+}
+[data-testid="stRadio"] label {
+    color: white;
+    font-weight: bold;
+}
+[data-testid="stCaptionContainer"] {
+    color: #FFF3E9;
+}
+.section-title {
+    color: white;
+    font-size: 24px;
+    font-weight: 900;
+    margin: 18px 0;
+}
+.result-card {
+    background: #39235E;
+    color: white;
+    padding: 22px;
+    border-radius: 24px;
+    margin: 12px 0;
+}
+.result-card h3 {
+    color: #FFE16B !important;
 }
 </style>
 """, unsafe_allow_html=True)
 
 SUBJECTS = [
-    "국어 📖", "수학 📐", "영어 🔤",
-    "사회 🌍", "과학 🔬", "체육 🏃", "기타 ✏️"
+    "국어", "수학", "영어", "사회",
+    "과학", "체육", "기타"
 ]
 
-LEVELS = {
-    1: "😊 말똥말똥",
-    2: "🙂 조금 나른함",
-    3: "😐 졸음이 옴",
-    4: "😴 많이 졸림",
-    5: "💤 거의 잠듦"
-}
+# -----------------------
+# 세션 상태
+# -----------------------
+if "messages" not in st.session_state:
+    st.session_state.messages = [{
+        "role": "assistant",
+        "content": (
+            "HEY! 👋 오늘도 수업 듣느라 고생했어!\n\n"
+            "어떤 과목에서 졸렸어?\n"
+            "국어, 수학, 영어, 사회, 과학, 체육 중 알려줘!"
+        )
+    }]
 
-# 기록 저장
+if "step" not in st.session_state:
+    st.session_state.step = "subject"
+
+if "subject" not in st.session_state:
+    st.session_state.subject = None
+
+if "level" not in st.session_state:
+    st.session_state.level = None
+
 if "records" not in st.session_state:
     st.session_state.records = []
 
-# 메인 화면
+
+def bot_say(message):
+    st.session_state.messages.append({
+        "role": "assistant",
+        "content": message
+    })
+
+
+def user_say(message):
+    st.session_state.messages.append({
+        "role": "user",
+        "content": message
+    })
+
+
+def get_level(message):
+    for char in message:
+        if char in "12345":
+            return int(char)
+
+    words = {
+        "안 졸": 1,
+        "멀쩡": 1,
+        "조금": 2,
+        "보통": 3,
+        "많이": 4,
+        "너무": 5,
+        "매우": 5,
+        "잠들": 5
+    }
+
+    for word, number in words.items():
+        if word in message:
+            return number
+
+    return None
+
+
+def recommendation(level):
+    if level <= 2:
+        return (
+            "🟢 집중력이 좋은 상태야!\n\n"
+            "추천 수업 방식:\n"
+            "개념 설명 15분 → 문제 해결 15분 → 정리 5분\n\n"
+            "지금 중요한 내용을 정리하면 좋겠어!"
+        )
+
+    if level == 3:
+        return (
+            "🟡 살짝 졸린 상태구나!\n\n"
+            "추천 수업 방식:\n"
+            "짧은 설명 10분 → 짝 토의 5분 → "
+            "퀴즈 10분\n\n"
+            "핵심 단어 3개를 적어보자!"
+        )
+
+    return (
+        "🔴 졸음이 많이 몰려오는구나!\n\n"
+        "추천 수업 방식:\n"
+        "가벼운 스트레칭 2분 → 참여 활동 10분 → "
+        "짧은 설명 5분\n\n"
+        "놓친 부분은 친구의 필기를 확인하거나 "
+        "선생님께 질문해 봐!"
+    )
+
+
+def handle_message(message):
+    message = message.strip()
+
+    if not message:
+        return
+
+    user_say(message)
+    step = st.session_state.step
+
+    if step == "subject":
+        found = None
+
+        for subject in SUBJECTS:
+            if subject in message:
+                found = subject
+                break
+
+        if found is None:
+            bot_say(
+                "어떤 과목인지 잘 모르겠어! 😅\n\n"
+                "국어, 수학, 영어, 사회, 과학, 체육, 기타 "
+                "중 하나를 입력해 줘."
+            )
+            return
+
+        st.session_state.subject = found
+        st.session_state.step = "level"
+
+        bot_say(
+            f"오! {found} 시간이었구나! 📚\n\n"
+            "얼마나 졸렸어?\n\n"
+            "1️⃣ 전혀 안 졸림\n"
+            "2️⃣ 조금 나른함\n"
+            "3️⃣ 졸음이 옴\n"
+            "4️⃣ 많이 졸림\n"
+            "5️⃣ 거의 잠듦\n\n"
+            "숫자 1~5로 알려줘!"
+        )
+
+    elif step == "level":
+        level = get_level(message)
+
+        if level is None:
+            bot_say(
+                "졸림 정도를 1부터 5 사이의 숫자로 "
+                "입력해 줘! 💤"
+            )
+            return
+
+        st.session_state.level = level
+        st.session_state.step = "memo"
+
+        bot_say(
+            "좋아! 기록하기 전에 하나만 더 물어볼게.\n\n"
+            "왜 졸렸던 것 같아?\n\n"
+            "예: 점심 먹고 나서, 잠을 못 자서, "
+            "설명이 길어서\n\n"
+            "이유가 없으면 '없음'이라고 입력해 줘!"
+        )
+
+    elif step == "memo":
+        subject = st.session_state.subject
+        level = st.session_state.level
+
+        st.session_state.records.append({
+            "시간": datetime.now().strftime(
+                "%Y-%m-%d %H:%M"
+            ),
+            "과목": subject,
+            "졸림": level,
+            "이유": message
+        })
+
+        bot_say(
+            f"💜 기록 완료!\n\n"
+            f"과목: {subject}\n\n"
+            f"졸림 정도: {level}/5\n\n"
+            f"이유: {message}\n\n"
+            f"{recommendation(level)}\n\n"
+            "다른 과목도 기록하고 싶으면 "
+            "'다시'라고 입력해 줘!"
+        )
+
+        st.session_state.step = "done"
+
+    elif step == "done":
+        if any(word in message for word in [
+            "다시", "시작", "기록", "추가"
+        ]):
+            st.session_state.step = "subject"
+            bot_say(
+                "좋아! 다시 시작해 보자! ✨\n\n"
+                "이번에는 어떤 과목에서 졸렸어?"
+            )
+        elif "분석" in message:
+            bot_say(
+                "상단의 📊 ANALYSIS 메뉴에서 "
+                "과목별 졸림 기록을 확인할 수 있어!"
+            )
+        else:
+            bot_say(
+                "다른 과목도 기록하려면 '다시', "
+                "기록을 분석하려면 '분석'이라고 입력해 줘!"
+            )
+
+
+# -----------------------
+# 메인 디자인
+# -----------------------
 st.markdown("""
 <div class="hero">
-    <h1>💤 졸업어때?</h1>
-    <p>졸음은 기록하고, 수업은 더 집중되게!</p>
+    <div class="small">SLEEP LAB — 2026</div>
+    <h1>졸업<br>어때?</h1>
+    <div class="moon">🌙💤</div>
+    <div class="desc">
+        졸음은 기록하고,<br>
+        수업은 더 집중되게.
+    </div>
 </div>
 """, unsafe_allow_html=True)
 
-st.caption(
-    "잠깐 졸았다고 수업을 포기하지 마세요. "
-    "나에게 맞는 집중 방법을 찾아봐요."
-)
-
-page = st.radio(
+menu = st.radio(
     "메뉴",
-    ["📝 졸림 기록", "📊 졸림 분석", "💡 수업 추천"],
+    ["💬 CHAT", "📊 ANALYSIS"],
     horizontal=True,
     label_visibility="collapsed"
 )
 
-# 1. 졸림 기록
-if page == "📝 졸림 기록":
-    st.subheader("오늘 수업은 어땠나요?")
+# -----------------------
+# 챗봇 화면
+# -----------------------
+if menu == "💬 CHAT":
+    st.markdown(
+        '<div class="section-title">LET’S TALK. 💬</div>',
+        unsafe_allow_html=True
+    )
 
-    with st.form("record_form"):
-        subject = st.selectbox("과목 선택", SUBJECTS)
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
 
-        level = st.select_slider(
-            "졸림 정도",
-            options=list(LEVELS),
-            value=3,
-            format_func=lambda n: LEVELS[n]
-        )
+    if st.session_state.step == "subject":
+        st.caption("과목을 선택하거나 직접 입력해 봐!")
+        cols = st.columns(3)
 
-        period = st.selectbox("교시", list(range(1, 9)))
+        for index, subject in enumerate(SUBJECTS[:6]):
+            with cols[index % 3]:
+                if st.button(
+                    subject,
+                    key=f"subject_{index}",
+                    use_container_width=True
+                ):
+                    handle_message(subject)
+                    st.rerun()
 
-        memo = st.text_input(
-            "메모 (선택)",
-            placeholder="예: 점심 먹고 나서 졸렸어요"
-        )
+    elif st.session_state.step == "level":
+        st.caption("지금 졸림 정도는?")
+        cols = st.columns(5)
 
-        submitted = st.form_submit_button(
-            "💜 졸림 기록하기",
-            type="primary",
+        for i in range(1, 6):
+            with cols[i - 1]:
+                if st.button(
+                    str(i),
+                    key=f"level_{i}",
+                    use_container_width=True
+                ):
+                    handle_message(str(i))
+                    st.rerun()
+
+    elif st.session_state.step == "memo":
+        if st.button(
+            "이유 없음 → 바로 기록",
             use_container_width=True
+        ):
+            handle_message("없음")
+            st.rerun()
+
+    else:
+        if st.button(
+            "✨ 다른 과목 기록하기",
+            use_container_width=True
+        ):
+            handle_message("다시")
+            st.rerun()
+
+    prompt = st.chat_input(
+        "여기에 답변을 입력해 줘..."
+    )
+
+    if prompt:
+        handle_message(prompt)
+        st.rerun()
+
+# -----------------------
+# 분석 화면
+# -----------------------
+else:
+    st.markdown(
+        '<div class="section-title">YOUR SLEEP DATA.</div>',
+        unsafe_allow_html=True
+    )
+
+    records = st.session_state.records
+
+    if not records:
+        st.info(
+            "아직 기록이 없어! "
+            "CHAT 메뉴에서 첫 기록을 남겨 봐."
         )
+    else:
+        df = pd.DataFrame(records)
 
-    if submitted:
-        st.session_state.records.append({
-            "기록시각": datetime.now().strftime("%Y-%m-%d %H:%M"),
-            "과목": subject,
-            "교시": period,
-            "졸림": level,
-            "메모": memo
-        })
+        col1, col2 = st.columns(2)
 
-        st.success("기록했어요! 아래에서 맞춤 추천을 확인하세요.")
+        with col1:
+            st.metric("TOTAL RECORDS", len(df))
 
-    if st.session_state.records:
-        latest = st.session_state.records[-1]
+        with col2:
+            st.metric(
+                "SLEEP SCORE",
+                f"{df['졸림'].mean():.1f}/5"
+            )
 
         st.markdown(
-            f'<div class="note">최근 기록: '
-            f'<b>{latest["과목"]}</b> · '
-            f'{LEVELS[latest["졸림"]]}</div>',
+            '<div class="section-title">SUBJECT RANKING.</div>',
             unsafe_allow_html=True
         )
 
-        if latest["졸림"] >= 4:
-            st.info(
-                "많이 졸리다면 짧게 몸을 움직이고, "
-                "놓친 설명은 친구나 선생님께 확인해 보세요."
-            )
-        elif latest["졸림"] >= 3:
-            st.info(
-                "핵심 단어 3개를 적거나 "
-                "짝과 질문 하나를 주고받아 보세요."
-            )
-        else:
-            st.info(
-                "좋아요! 지금 집중할 수 있을 때 "
-                "중요한 내용을 정리해 보세요."
-            )
-
-# 2. 졸림 분석
-elif page == "📊 졸림 분석":
-    st.subheader("나의 졸림 패턴")
-
-    if not st.session_state.records:
-        st.info(
-            "먼저 '졸림 기록' 메뉴에서 "
-            "기록을 추가해 주세요."
-        )
-    else:
-        df = pd.DataFrame(st.session_state.records)
-
-        a, b = st.columns(2)
-
-        a.metric("기록 횟수", f"{len(df)}회")
-        b.metric(
-            "평균 졸림",
-            f"{df['졸림'].mean():.1f} / 5"
+        summary = (
+            df.groupby("과목")["졸림"]
+            .mean()
+            .sort_values(ascending=False)
         )
 
-        st.write("**과목별 평균 졸림**")
+        st.bar_chart(summary)
 
-        st.bar_chart(
-            df.groupby("과목")["졸림"].mean().sort_values(),
-            horizontal=True
+        sleepiest = summary.index[0]
+
+        st.markdown(
+            f'<div class="result-card">'
+            f'<h3>MOST SLEEPY 😴</h3>'
+            f'<p>가장 졸렸던 과목은 '
+            f'<b>{sleepiest}</b>!</p>'
+            f'</div>',
+            unsafe_allow_html=True
         )
 
-        st.write("**교시별 평균 졸림**")
-
-        st.line_chart(
-            df.groupby("교시")["졸림"].mean()
+        st.markdown(
+            '<div class="section-title">HISTORY.</div>',
+            unsafe_allow_html=True
         )
 
         st.dataframe(
@@ -199,84 +483,34 @@ elif page == "📊 졸림 분석":
         )
 
         st.download_button(
-            "📥 기록 CSV 저장",
-            df.to_csv(index=False).encode("utf-8-sig"),
-            "sleep_records.csv",
-            "text/csv"
+            "📥 기록 다운로드",
+            data=df.to_csv(
+                index=False
+            ).encode("utf-8-sig"),
+            file_name="sleep_records.csv",
+            mime="text/csv",
+            use_container_width=True
         )
 
-        if st.button("🗑️ 내 기록 초기화"):
+        if st.button(
+            "🗑️ 기록 초기화",
+            use_container_width=True
+        ):
             st.session_state.records = []
+            st.session_state.messages = [{
+                "role": "assistant",
+                "content": (
+                    "다시 시작해 보자! 💜\n\n"
+                    "어떤 과목에서 졸렸어?"
+                )
+            }]
+            st.session_state.step = "subject"
+            st.session_state.subject = None
+            st.session_state.level = None
             st.rerun()
 
-# 3. 수업 추천
-else:
-    st.subheader("졸림 정도에 맞는 수업 방법")
-
-    st.caption(
-        "교사가 학생들의 상태를 참고해 "
-        "수업을 조절할 때 활용할 수 있어요."
-    )
-
-    if st.session_state.records:
-        average = (
-            sum(r["졸림"] for r in st.session_state.records)
-            / len(st.session_state.records)
-        )
-
-        st.metric("현재 기록 평균", f"{average:.1f} / 5")
-
-        default_level = min(5, max(1, round(average)))
-    else:
-        default_level = 3
-
-    selected = st.slider(
-        "추천받을 졸림 단계",
-        1, 5, default_level
-    )
-
-    if selected <= 2:
-        st.success("🟢 집중 상태가 좋아요")
-
-        st.markdown(
-            "**추천:** 개념 설명 15분 → "
-            "문제 해결 15분 → 핵심 정리 5분"
-        )
-
-    elif selected == 3:
-        st.warning("🟡 집중 전환이 필요해요")
-
-        st.markdown(
-            "**추천:** 짧은 설명 10분 → "
-            "짝 토의 5분 → 퀴즈 10분 → 정리 5분"
-        )
-
-    else:
-        st.error("🔴 졸림이 높은 상태예요")
-
-        st.markdown(
-            "**추천:** 가벼운 스트레칭 2분 → "
-            "참여형 활동 10분 → 짧은 설명 5분 → "
-            "확인 퀴즈 5분"
-        )
-
-    st.markdown("""
-    <div class="note">
-    💡 졸림 정도만으로 수업의 난이도를 자동 결정하지는 않아요.
-    학습 목표와 학생 상태를 함께 고려하세요.
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.write("**놓친 수업 따라잡기**")
-    st.write(
-        "① 친구의 필기 확인하기  "
-        "② 핵심 개념 3개 적기  "
-        "③ 이해 안 된 부분 질문하기"
-    )
-
-st.divider()
-
+st.markdown("---")
 st.caption(
-    "💜 졸업어때? | 기록은 현재 브라우저 세션에서만 유지됩니다. "
-    "새로 접속하거나 서버가 재시작되면 사라질 수 있어요."
+    "SLEEP LAB © 2026 | 졸업어때? 💜 "
+    "현재 접속 세션에서만 기록이 유지됩니다."
 )
