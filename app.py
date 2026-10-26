@@ -1,91 +1,97 @@
 import streamlit as st
+from datetime import datetime
 from urllib.parse import quote
 import re
-import json
-from html import escape
-import streamlit.components.v1 as components
 
-st.set_page_config(page_title='안심지하철 | 보호자 연락 시스템', page_icon='🚇', layout='centered')
+st.set_page_config(page_title='안심지하철 | 보호자 연락', page_icon='🚇', layout='centered', initial_sidebar_state='collapsed')
 
 st.markdown('''<style>
-.stApp {background:linear-gradient(180deg,#edf5ff 0%,#ffffff 55%);}
-.block-container {max-width:720px;padding-top:1.5rem;}
-h1,h2,h3 {color:#184b92!important;}
-.stButton>button {width:100%;border-radius:16px;min-height:58px;font-size:21px;font-weight:700;background:#3178ed;color:white;border:0;}
-.stButton>button:hover {background:#195bc2;color:white;}
-[data-testid="stTextInput"] input {font-size:20px;border-radius:12px;}
-.hero {padding:23px;border-radius:22px;background:linear-gradient(125deg,#276fe1,#68a3fa);color:white;margin-bottom:18px;}
-.hero h1 {color:white!important;margin:0;font-size:31px;}
-.hero p {margin:7px 0 0;font-size:17px;}
-.panel {padding:20px;background:#eaf3ff;border-radius:18px;margin:12px 0;color:#174780;}
-.status {text-align:center;padding:24px;background:#e9f9f2;border-radius:20px;font-size:23px;color:#087c64;font-weight:700;}
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap');
+html,body,[class*="css"],.stApp{font-family:'Noto Sans KR',sans-serif;}
+.stApp{background:linear-gradient(155deg,#fff9fc 0%,#ffe5f0 58%,#ffd2e5 100%);}
+.block-container{max-width:650px;padding-top:1.5rem;padding-bottom:4rem;}
+#MainMenu,footer{visibility:hidden;}
+h1,h2,h3,p{color:#49243b;}
+.hero{background:linear-gradient(125deg,#f32192,#ff6b83);border-radius:28px;padding:28px 24px;color:white;box-shadow:0 12px 28px #ed438344;margin-bottom:22px;}
+.hero h1{color:white;font-size:2.15rem;margin:8px 0;}.hero p{color:#fff6fb;margin:0;}
+.pill{display:inline-block;border-radius:20px;padding:5px 12px;background:#ffffff30;font-size:13px;font-weight:700;color:white;}
+.card{background:#ffffffd9;border:1px solid #fff;border-radius:24px;padding:20px;margin:10px 0 18px;box-shadow:0 7px 22px #ed43831a;}
+.card h3{margin:0 0 8px;font-size:1.35rem;}.muted{color:#875a76;font-size:0.95rem;}
+.route{font-size:1.35rem;font-weight:800;color:#c81c74;text-align:center;word-break:keep-all;}
+.status{background:#fff1f7;border-radius:18px;padding:15px 18px;font-weight:700;color:#c51b71;margin:10px 0;}
+div.stButton>button,div.stLinkButton>a{border-radius:30px!important;min-height:54px!important;font-size:1.05rem!important;font-weight:800!important;width:100%;}
+div.stButton>button[kind="primary"]{background:linear-gradient(110deg,#f31b8c,#ff697e)!important;border:0!important;color:white!important;box-shadow:0 6px 16px #ef438644;}
+div.stButton>button[kind="secondary"]{background:white!important;border:1px solid #f6a7c8!important;color:#be226e!important;}
+input{border-radius:14px!important;} .stTextInput label{font-weight:700!important;}
+[data-testid="stProgressBar"]>div>div{background:#f32192;}
+.small{font-size:0.85rem;color:#885b75;}
 </style>''', unsafe_allow_html=True)
 
-if 'stage' not in st.session_state:
-    st.session_state.stage = '출발 전'
-if 'route' not in st.session_state:
-    st.session_state.route = ('', '')
+for key, value in {'stage': 'setup', 'start': '', 'destination': '', 'guardian': '', 'phone': '', 'started_at': '', 'arrived_at': ''}.items():
+    if key not in st.session_state:
+        st.session_state[key] = value
 
-st.markdown('<div class="hero"><h1>🚇 안심지하철</h1><p>어르신의 안전한 이동을 돕는 보호자 연락 시스템</p></div>', unsafe_allow_html=True)
-st.info('📍 실제 위치를 자동으로 확인하지 않습니다. 도착 여부는 이용자가 직접 확인합니다.')
+st.markdown('''<div class="hero"><span class="pill">🚇 어르신을 위한 지하철 동행 서비스</span><h1>안심지하철 💗</h1><p>목적지까지 안심하고 이동하고,<br>보호자에게 도착 소식을 전해요.</p></div>''', unsafe_allow_html=True)
 
-st.subheader('① 이동 경로 입력')
-start = st.text_input('🚉 출발역', placeholder='예: 천안역')
-end = st.text_input('🏁 도착역', placeholder='예: 서울역')
-
-st.subheader('② 보호자 정보')
-guardian = st.text_input('👨‍👩‍👧 보호자 이름', placeholder='예: 김보호')
-phone = st.text_input('📱 보호자 휴대전화 번호', placeholder='예: 01012345678')
-clean_phone = re.sub(r'[^0-9]', '', phone)
-valid_phone = bool(re.fullmatch(r'01[016789]\d{7,8}', clean_phone))
-
-if (start.strip(), end.strip()) != st.session_state.route:
-    st.session_state.route = (start.strip(), end.strip())
-    st.session_state.stage = '출발 전'
-
-st.markdown(f'<div class="panel"><b>🚉 {escape(start.strip()) or "출발역"} &nbsp; → &nbsp; {escape(end.strip()) or "도착역"}</b><br>현재 상태: {st.session_state.stage}</div>', unsafe_allow_html=True)
-
-st.subheader('③ 이동 상태')
-if st.session_state.stage == '출발 전':
-    if st.button('🚇 출발했어요'):
-        if not start.strip() or not end.strip():
-            st.warning('출발역과 도착역을 먼저 입력해주세요.')
-        elif start.strip() == end.strip():
-            st.warning('출발역과 도착역을 다르게 입력해주세요.')
+stage = st.session_state.stage
+if stage == 'setup':
+    st.markdown('<div class="card"><h3>📍 이동 계획 설정</h3><div class="muted">출발역과 도착역을 적어주세요.</div></div>', unsafe_allow_html=True)
+    with st.form('setup_form'):
+        start = st.text_input('🚉 출발역', value=st.session_state.start, placeholder='예: 천안역', max_chars=50)
+        destination = st.text_input('🏁 도착역', value=st.session_state.destination, placeholder='예: 서울역', max_chars=50)
+        st.markdown('### 👨‍👩‍👧 보호자 정보')
+        guardian = st.text_input('보호자 이름', value=st.session_state.guardian, placeholder='예: 김보호', max_chars=40)
+        phone = st.text_input('보호자 휴대전화 번호', value=st.session_state.phone, placeholder='예: 01012345678', max_chars=20)
+        submitted = st.form_submit_button('이동 계획 확인 →', type='primary')
+    if submitted:
+        digits = re.sub(r'\D', '', phone)
+        if not all([start.strip(), destination.strip(), guardian.strip(), digits]):
+            st.error('출발역, 도착역, 보호자 이름과 전화번호를 모두 입력해주세요.')
+        elif start.strip() == destination.strip():
+            st.error('출발역과 도착역은 서로 달라야 합니다.')
+        elif not re.fullmatch(r'01[016789]\d{7,8}', digits):
+            st.error('보호자 휴대전화 번호를 확인해주세요. (예: 01012345678)')
         else:
-            st.session_state.stage = '이동 중'
+            st.session_state.update(start=start.strip(), destination=destination.strip(), guardian=guardian.strip(), phone=digits, stage='confirm')
             st.rerun()
-elif st.session_state.stage == '이동 중':
-    st.info('🚆 이동 중입니다. 도착역에 내린 뒤 아래 버튼을 눌러주세요.')
-    if st.button('✅ 목적지에 도착했어요'):
-        st.session_state.stage = '도착 완료'
+
+elif stage == 'confirm':
+    st.markdown('<div class="card"><h3>💗 이동 계획을 확인해주세요</h3></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="card"><div class="route">🚉 {st.session_state.start}　→　🏁 {st.session_state.destination}</div><p class="muted">보호자: {st.session_state.guardian}</p></div>', unsafe_allow_html=True)
+    st.info('이동 중 상태는 이 화면에서 직접 확인합니다. 보호자에게 자동으로 위치가 전송되지는 않습니다.')
+    if st.button('🚇 이동 시작하기', type='primary'):
+        st.session_state.started_at = datetime.now().strftime('%Y-%m-%d %H:%M')
+        st.session_state.stage = 'moving'
         st.rerun()
-else:
-    st.markdown('<div class="status">✅ 목적지에 도착했어요!</div>', unsafe_allow_html=True)
-    if st.button('🔄 새로운 이동 시작'):
-        st.session_state.stage = '출발 전'
+    if st.button('← 정보 수정하기'):
+        st.session_state.stage = 'setup'
         st.rerun()
 
-st.subheader('④ 보호자에게 도착 알리기')
-if st.session_state.stage == '도착 완료':
-    if not guardian.strip() or not valid_phone:
-        st.warning('보호자 이름과 올바른 휴대전화 번호를 입력해주세요.')
-    else:
-        message = f'[안심지하철] {guardian.strip()}님, 이용자가 {end.strip()}에 도착했다고 직접 확인했습니다. 출발역: {start.strip()}. 안심하세요!'
-        st.text_area('보호자에게 보낼 메시지', value=message, height=110)
-        st.code(clean_phone, language=None)
-        st.caption('아래 링크를 휴대전화에서 누르면 문자 앱이 열립니다. 전송 버튼은 직접 눌러야 합니다.')
-        sms_url = 'sms:' + clean_phone + '?body=' + quote(message)
-        st.markdown(f'<a href="{sms_url}" target="_self" style="display:block;text-align:center;background:#3178ed;color:white;padding:18px;border-radius:16px;font-size:21px;font-weight:bold;text-decoration:none;">📩 문자 앱 열기</a>', unsafe_allow_html=True)
-        st.code(message, language=None)
-        st.caption('문자 앱이 열리지 않는 PC에서는 위 메시지를 복사해 휴대전화로 보내주세요.')
-else:
-    st.info('도착 완료 버튼을 누르면 보호자에게 보낼 문자 내용이 나타납니다.')
+elif stage == 'moving':
+    st.markdown('<div class="card"><h3>🚇 지금 이동 중이에요</h3><div class="muted">목적지에 도착하면 아래 버튼을 눌러주세요.</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="card"><div class="status">📍 출발 완료 · {st.session_state.started_at}</div><div class="route">{st.session_state.start}<br>↓<br>🚇 이동 중<br>↓<br>{st.session_state.destination}</div><div class="status">🏁 도착 확인 대기 중</div></div>', unsafe_allow_html=True)
+    st.warning('실시간 지하철 위치나 GPS를 확인하는 기능은 없습니다. 실제 도착했을 때만 버튼을 눌러주세요.')
+    if st.button('✅ 목적지에 도착했어요!', type='primary'):
+        st.session_state.arrived_at = datetime.now().strftime('%Y-%m-%d %H:%M')
+        st.session_state.stage = 'arrived'
+        st.rerun()
+    if st.button('← 이동 계획으로 돌아가기'):
+        st.session_state.stage = 'confirm'
+        st.rerun()
 
-st.subheader('🔊 음성 안내')
-voice_text = f'안심지하철입니다. 현재 상태는 {st.session_state.stage}입니다. 출발역은 {start or "미입력"}, 도착역은 {end or "미입력"}입니다.'
-# Browser speech synthesis: no extra package, browser support required.
-components.html('''<button onclick="speak()" style="width:100%;padding:16px;background:#e6f1ff;color:#174b95;border:1px solid #a9cbfa;border-radius:14px;font-size:20px;font-weight:bold;cursor:pointer">🔊 안내 듣기</button>
-<script>function speak(){if(!('speechSynthesis' in window)){alert('이 브라우저는 음성 안내를 지원하지 않습니다.');return;}window.speechSynthesis.cancel();let u=new SpeechSynthesisUtterance(TEXT);u.lang='ko-KR';u.rate=0.85;window.speechSynthesis.speak(u);}</script>'''.replace('TEXT', json.dumps(voice_text, ensure_ascii=False)), height=70)
+elif stage == 'arrived':
+    st.markdown(f'<div class="card" style="text-align:center"><div style="font-size:4rem">🎉</div><h3>목적지에 도착했어요!</h3><div class="route">🏁 {st.session_state.destination}</div><p class="muted">{st.session_state.arrived_at}</p></div>', unsafe_allow_html=True)
+    message = f'[{st.session_state.guardian}님께] 안녕하세요! {st.session_state.start}에서 출발해 {st.session_state.destination}에 안전하게 도착했습니다. 도착 확인 시간: {st.session_state.arrived_at} - 안심지하철'
+    st.markdown('<div class="card"><h3>💌 보호자에게 알리기</h3><div class="muted">아래 메시지를 문자로 보낼 수 있어요.</div></div>', unsafe_allow_html=True)
+    st.text_area('전송할 메시지', value=message, height=135)
+    # Mobile SMS URI: opens the device messaging application; does not send automatically.
+    sms_url = f'sms:{st.session_state.phone}?body={quote(message)}'
+    st.link_button('📱 보호자에게 문자 작성하기', sms_url, type='primary')
+    st.caption('휴대전화에서 문자 앱이 열리면 전송 버튼을 직접 눌러야 합니다. PC에서는 문자 앱이 열리지 않을 수 있습니다.')
+    st.code(message, language=None)
+    st.caption('문자 앱이 열리지 않으면 위 문구를 복사하여 직접 보내주세요.')
+    if st.button('🏠 처음으로 돌아가기'):
+        st.session_state.stage = 'setup'
+        st.rerun()
 
-st.caption('🔒 입력 정보는 현재 앱 세션에서만 사용합니다. 이 앱은 위치 추적이나 자동 문자 발송을 제공하지 않습니다.')
+st.markdown('<p class="small" style="text-align:center;margin-top:30px">💗 안심지하철 · 어르신의 안전한 이동을 응원합니다.</p>', unsafe_allow_html=True)
